@@ -15,9 +15,15 @@ import (
 	"github.com/allanabrahao/nanomultiplayer/internal/game"
 	"github.com/allanabrahao/nanomultiplayer/internal/handler"
 	"github.com/allanabrahao/nanomultiplayer/internal/nano"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env if present (dev convenience). Real env vars always take precedence.
+	if err := godotenv.Load(); err == nil {
+		log.Println("loaded .env")
+	}
+
 	addr := os.Getenv("ADDR")
 	if addr == "" {
 		addr = ":8080"
