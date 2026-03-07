@@ -61,13 +61,40 @@ func NewWSHandler(hub *game.Hub, database *db.DB, masterSeed []byte, rpc *nano.C
 	return &WSHandler{hub: hub, db: database, masterSeed: masterSeed, rpcClient: rpc}
 }
 
+// pushBalance queries the real on-chain balance and sends it to the player.
+// Called on connect so the sidebar always shows the correct balance immediately,
+// even when there are no pending blocks to receive.
+func (h *WSHandler) pushBalance(ctx context.Context, p *game.Player) {
+	if h.rpcClient == nil || p.NanoAddress == "" {
+		return
+	}
+	wallet, err := nano.DeriveWallet(h.masterSeed, p.SeedIndex)
+	if err != nil {
+		return
+	}
+	info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address)
+	if err != nil {
+		return // account not yet opened — balance is genuinely zero
+	}
+	bal, ok := new(big.Int).SetString(info.Balance, 10)
+	if !ok {
+		return
+	}
+	b, _ := json.Marshal(map[string]string{
+		"type": "balance",
+		"xno":  game.FormatXNO(bal),
+		"raw":  info.Balance,
+	})
+	p.Send(b)
+}
+
 // pollDeposits checks for incoming Nano to the player's session address every 30 seconds.
-// When a deposit is detected it is received on-chain and recorded in the DB with the
-// sender's address, so the owner can issue refunds if anything goes wrong.
+// Receiving pending blocks and DB recording require a DB connection, but balance display
+// works even without one.
 // The loop exits when ctx is cancelled (i.e. the player's WebSocket closes).
 func (h *WSHandler) pollDeposits(ctx context.Context, p *game.Player) {
-	if h.db == nil || h.rpcClient == nil || p.NanoAddress == "" {
-		return // nothing to poll without DB, RPC, or a derived address
+	if h.rpcClient == nil || p.NanoAddress == "" {
+		return
 	}
 
 	// Check immediately on connect, then every 30 seconds.
@@ -87,7 +114,8 @@ func (h *WSHandler) pollDeposits(ctx context.Context, p *game.Player) {
 }
 
 // checkDeposits looks for receivable blocks on the player's address, receives them
-// on-chain, and records each one in the DB with the sender's nano_ address.
+// on-chain, updates the player's balance display, and records each deposit in the DB.
+// DB recording is skipped gracefully when no DB is connected.
 func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 	hashes, err := h.rpcClient.Receivable(ctx, p.NanoAddress)
 	if err != nil || len(hashes) == 0 {
@@ -266,6 +294,10 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"nanoAddress": p.NanoAddress,
 	})
 	p.Send(initMsg)
+
+	// Push the current on-chain balance immediately so the sidebar never shows
+	// stale zero even when the player reconnects with an existing balance.
+	go h.pushBalance(r.Context(), p)
 
 	// Poll for incoming Nano deposits in the background.
 	// The goroutine exits automatically when the WebSocket closes (ctx cancelled).
