@@ -19,7 +19,7 @@ const roomID = canvas.dataset.room;
 let myID      = null;
 let state     = { players: [] };
 let hoverCell = null;
-let pending   = null;
+let pending   = null;  // { gx, gy, enemyID } — the cell the player clicked
 
 // playerVisuals: { [id]: { px, py, gridX, gridY, waypoints: [{gx,gy}] } }
 // px/py   — current smooth pixel position of the circle centre
@@ -27,12 +27,15 @@ let pending   = null;
 // waypoints — queue of intermediate cell centres still to pass through
 const playerVisuals = {};
 
+// bullets: [{fromPx, fromPy, toPx, toPy, startTime, duration}]
+// Each bullet animates from shooter to target over `duration` ms.
+const bullets = [];
+
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
 // computePath returns the list of grid cells to step through when moving from
 // (fromGX,fromGY) to (toGX,toGY).  Each step is one Chebyshev move (diagonal
-// counts as one step), so the path always passes through cell centres — never
-// cuts straight across the grid in pixel space.
+// counts as one step), so the path always passes through cell centres.
 function computePath(fromGX, fromGY, toGX, toGY) {
   const path = [];
   let cx = fromGX;
@@ -43,6 +46,11 @@ function computePath(fromGX, fromGY, toGX, toGY) {
     path.push({ gx: cx, gy: cy });
   }
   return path;
+}
+
+// cellCentre returns the canvas pixel coordinates of a grid cell's centre.
+function cellCentre(gx, gy) {
+  return { x: gx * CELL + CELL / 2, y: gy * CELL + CELL / 2 };
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -81,6 +89,25 @@ ws.onmessage = (event) => {
       }
     }
     state = msg;
+
+  } else if (msg.type === "shot") {
+    // Spawn a bullet animation from the shooter to the target.
+    const sv = playerVisuals[msg.shooterID];
+    const tv = playerVisuals[msg.targetID];
+    if (sv && tv) {
+      bullets.push({
+        fromPx:    sv.px,
+        fromPy:    sv.py,
+        toPx:      tv.px,
+        toPy:      tv.py,
+        startTime: performance.now(),
+        duration:  200, // ms
+      });
+    }
+
+  } else if (msg.type === "died") {
+    // Show the death overlay; it fades away when the server removes the player.
+    document.getElementById("death-overlay").classList.remove("hidden");
   }
 };
 
@@ -94,16 +121,28 @@ ws.onclose = () => {
   ctx.fillText("Disconnected", canvas.width / 2, canvas.height / 2);
 };
 
-// ── Move helpers ──────────────────────────────────────────────────────────────
+// ── Send helpers ───────────────────────────────────────────────────────────────
 
 function sendMove(gx, gy) {
   if (ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ gx, gy }));
+  ws.send(JSON.stringify({ action: "move", gx, gy }));
 }
 
-// myPosition returns the authoritative grid pos — used for input, not rendering.
+function sendShoot(targetID) {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ action: "shoot", targetID }));
+}
+
+// ── Player lookup helpers ──────────────────────────────────────────────────────
+
+// myPosition returns the authoritative player state for the local player.
 function myPosition() {
   return state.players?.find(p => p.id === myID) ?? null;
+}
+
+// playerAtCell returns the player occupying (gx, gy), or null.
+function playerAtCell(gx, gy) {
+  return state.players?.find(p => p.gx === gx && p.gy === gy) ?? null;
 }
 
 function isReachable(ox, oy, gx, gy) {
@@ -120,7 +159,7 @@ const MOVE_COOLDOWN = 150;
 
 document.addEventListener("keydown", (e) => {
   const me = myPosition();
-  if (!me) return;
+  if (!me || me.health < 100) return; // only healthy players can move
 
   const now = Date.now();
   if (now - lastMoveAt < MOVE_COOLDOWN) return;
@@ -155,7 +194,7 @@ canvas.addEventListener("mouseleave", () => { hoverCell = null; });
 
 canvas.addEventListener("click", (e) => {
   const me = myPosition();
-  if (!me) return;
+  if (!me || me.health < 100) return; // only healthy players can act
 
   const rect = canvas.getBoundingClientRect();
   const gx = Math.floor((e.clientX - rect.left) / CELL);
@@ -163,30 +202,54 @@ canvas.addEventListener("click", (e) => {
 
   if (!isReachable(me.gx, me.gy, gx, gy)) return;
 
-  pending = { gx, gy };
-  showModal();
+  const occupant = playerAtCell(gx, gy);
+  const isEnemy  = occupant && occupant.id !== myID;
+
+  pending = { gx, gy, enemyID: isEnemy ? occupant.id : null };
+  showModal(isEnemy);
 });
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 const modal      = document.getElementById("move-modal");
+const modalTitle = document.getElementById("modal-title");
 const btnConfirm = document.getElementById("modal-confirm");
+const btnShoot   = document.getElementById("modal-shoot");
 const btnCancel  = document.getElementById("modal-cancel");
 
-function showModal() { modal.classList.remove("hidden"); btnConfirm.focus(); }
-function hideModal() { modal.classList.add("hidden"); pending = null; }
+function showModal(hasEnemy) {
+  if (hasEnemy) {
+    modalTitle.textContent = "What do you want?";
+    btnShoot.classList.remove("hidden");
+  } else {
+    modalTitle.textContent = "Move here?";
+    btnShoot.classList.add("hidden");
+  }
+  modal.classList.remove("hidden");
+  btnConfirm.focus();
+}
+
+function hideModal() {
+  modal.classList.add("hidden");
+  pending = null;
+}
 
 btnConfirm.addEventListener("click", () => {
   if (pending) sendMove(pending.gx, pending.gy);
   hideModal();
 });
+
+btnShoot.addEventListener("click", () => {
+  if (pending?.enemyID) sendShoot(pending.enemyID);
+  hideModal();
+});
+
 btnCancel.addEventListener("click", hideModal);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideModal(); });
 
-// ── Visual update (path following) ───────────────────────────────────────────
+// ── Visual update (path following + bullets) ──────────────────────────────────
 
 // updateVisuals advances each player along their waypoint path at MOVE_SPEED px/frame.
-// When the head of the waypoint queue is reached the next waypoint is dequeued.
 function updateVisuals() {
   const activeIDs = new Set();
 
@@ -232,9 +295,9 @@ function draw() {
   drawGrid();
 
   const me = myPosition();
-  if (me) drawReachableArea(me);
+  if (me && me.health === 100) drawReachableArea(me);
 
-  if (hoverCell && me && isReachable(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
+  if (hoverCell && me && me.health === 100 && isReachable(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
     drawCellHighlight(hoverCell.gx, hoverCell.gy, "rgba(255,255,255,0.10)");
   }
   if (pending) {
@@ -245,6 +308,8 @@ function draw() {
     const v = playerVisuals[p.id];
     if (v) drawPlayer(p, v.px, v.py);
   }
+
+  drawBullets();
 
   requestAnimationFrame(draw);
 }
@@ -282,13 +347,28 @@ function drawCellHighlight(gx, gy, color) {
   ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
 }
 
+// drawPlayer renders a player circle with health-dependent appearance.
+// Healthy (100): full colour + Ӿ symbol.
+// Incapacitated (50): dimmed circle + ✕ symbol.
+// Dead (0): grey circle + ✕ symbol (visible for 2s grace period).
 function drawPlayer(player, px, py) {
   const r    = CELL / 2 - 2;
   const isMe = player.id === myID;
 
+  const dead          = player.health === 0;
+  const incapacitated = player.health === 50;
+
+  ctx.save();
+
+  if (dead) {
+    ctx.globalAlpha = 0.4;
+  } else if (incapacitated) {
+    ctx.globalAlpha = 0.55;
+  }
+
   ctx.beginPath();
   ctx.arc(px, py, r, 0, Math.PI * 2);
-  ctx.fillStyle = player.color;
+  ctx.fillStyle = dead ? "#666" : player.color;
   ctx.fill();
 
   if (isMe) {
@@ -301,7 +381,9 @@ function drawPlayer(player, px, py) {
   ctx.font         = "bold 15px system-ui";
   ctx.textAlign    = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("Ӿ", px, py);
+  ctx.fillText(incapacitated || dead ? "✕" : "Ӿ", px, py);
+
+  ctx.restore();
 
   drawHealthBar(px, py - r - 8, player.health);
 }
@@ -316,6 +398,29 @@ function drawHealthBar(cx, cy, health) {
   ctx.fillRect(x, cy, w, h);
   ctx.fillStyle = pct > 0.5 ? "#52C07A" : pct > 0.25 ? "#F5A623" : "#E05252";
   ctx.fillRect(x, cy, w * pct, h);
+}
+
+// drawBullets renders all active bullet animations, removing finished ones.
+function drawBullets() {
+  const now = performance.now();
+  let i = 0;
+  while (i < bullets.length) {
+    const b   = bullets[i];
+    const t   = Math.min(1, (now - b.startTime) / b.duration);
+    const bpx = b.fromPx + (b.toPx - b.fromPx) * t;
+    const bpy = b.fromPy + (b.toPy - b.fromPy) * t;
+
+    ctx.beginPath();
+    ctx.arc(bpx, bpy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#FFD700";
+    ctx.fill();
+
+    if (t >= 1) {
+      bullets.splice(i, 1); // animation complete
+    } else {
+      i++;
+    }
+  }
 }
 
 draw();

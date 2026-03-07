@@ -16,10 +16,19 @@ var spawnPoints = [][2]int{
 	{18, 5}, {12, 15},
 }
 
-// Input is a move command sent by a player targeting a specific grid cell.
+// Input is a command sent by a player: "move" to a cell, or "shoot" at a target.
 type Input struct {
 	PlayerID string
-	GX, GY   int // target grid column and row
+	Action   string // "move" (default) or "shoot"
+	GX, GY   int    // target grid cell for move
+	TargetID string // target player ID for shoot
+}
+
+// shotEvent is broadcast to all players in the room when a shot is fired.
+type shotEvent struct {
+	Type      string `json:"type"`
+	ShooterID string `json:"shooterID"`
+	TargetID  string `json:"targetID"`
 }
 
 // playerState is the per-player snapshot included in each broadcast.
@@ -124,14 +133,25 @@ func (r *Room) currentPlayerCount() int {
 	return len(r.players)
 }
 
-// applyInput validates and applies a move. Ignores non-adjacent or out-of-bounds moves.
+// applyInput dispatches to the correct handler based on the action type.
 func (r *Room) applyInput(input Input) {
+	switch input.Action {
+	case "shoot":
+		r.applyShoot(input)
+	default:
+		r.applyMove(input)
+	}
+}
+
+// applyMove validates and applies a movement command.
+// Only healthy players (health == 100) may move.
+func (r *Room) applyMove(input Input) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	p, ok := r.players[input.PlayerID]
-	if !ok {
-		return
+	if !ok || p.Health < 100 {
+		return // incapacitated and dead players cannot move
 	}
 
 	// Server enforces the movement radius — clients cannot teleport beyond it.
@@ -140,6 +160,58 @@ func (r *Room) applyInput(input Input) {
 	}
 
 	p.GX, p.GY = clampToGrid(input.GX, input.GY)
+}
+
+// applyShoot handles a shoot action: validates, applies damage, broadcasts the shot event.
+// A healthy player at health 100 can shoot; the shot reduces target health by 50.
+// First hit (100→50) incapacitates; second hit (50→0) kills.
+// Dead players are removed from the room after a 2-second grace period.
+func (r *Room) applyShoot(input Input) {
+	r.mu.Lock()
+
+	shooter, ok := r.players[input.PlayerID]
+	if !ok || shooter.Health < 100 {
+		r.mu.Unlock()
+		return // only healthy players can shoot
+	}
+
+	target, ok := r.players[input.TargetID]
+	if !ok || target.Health == 0 {
+		r.mu.Unlock()
+		return // target must exist and be alive
+	}
+
+	// Validate that the target is within shooting range (same radius as movement).
+	if !isValidMove(shooter.GX, shooter.GY, target.GX, target.GY) {
+		r.mu.Unlock()
+		return
+	}
+
+	target.Health -= 50
+	isDead := target.Health == 0
+	deadTarget := target
+
+	// Broadcast the shot event so clients can animate the bullet.
+	evt, _ := json.Marshal(shotEvent{
+		Type:      "shot",
+		ShooterID: input.PlayerID,
+		TargetID:  input.TargetID,
+	})
+	for _, p := range r.players {
+		p.Send(evt)
+	}
+
+	r.mu.Unlock()
+
+	// After a 2-second grace period, remove the dead player from the room.
+	if isDead {
+		go func() {
+			time.Sleep(2 * time.Second)
+			r.mu.Lock()
+			delete(r.players, deadTarget.ID)
+			r.mu.Unlock()
+		}()
+	}
 }
 
 // broadcastState serialises the current world snapshot and fans it out to all players.

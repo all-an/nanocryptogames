@@ -136,15 +136,23 @@ func readPump(conn *websocket.Conn, p *game.Player, room *game.Room) {
 			return
 		}
 
-		var input struct {
-			GX int `json:"gx"`
-			GY int `json:"gy"`
+		var raw struct {
+			Action   string `json:"action"`
+			GX       int    `json:"gx"`
+			GY       int    `json:"gy"`
+			TargetID string `json:"targetID"`
 		}
-		if json.Unmarshal(msg, &input) != nil {
+		if json.Unmarshal(msg, &raw) != nil {
 			continue
 		}
 
-		room.Submit(game.Input{PlayerID: p.ID, GX: input.GX, GY: input.GY})
+		room.Submit(game.Input{
+			PlayerID: p.ID,
+			Action:   raw.Action,
+			GX:       raw.GX,
+			GY:       raw.GY,
+			TargetID: raw.TargetID,
+		})
 	}
 }
 

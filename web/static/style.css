@@ -244,3 +244,17 @@ canvas {
 .btn-secondary:hover {
   color: #fff !important;
 }
+
+.btn-danger {
+  background: #c0392b !important;
+  color: #fff !important;
+}
+
+.btn-danger:hover {
+  background: #a93226 !important;
+}
+
+.modal-sub {
+  color: #666;
+  font-size: 0.85rem;
+}

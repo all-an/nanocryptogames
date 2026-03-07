@@ -108,7 +108,7 @@ web/
 
 ---
 
-## ▶ Phase 4 — Combat System  ← START HERE
+## Phase 4 — Combat System ✅ DONE
 
 **Goal:** Server-authoritative shooting. One hit incapacitates; two hits kill.
 
@@ -133,19 +133,20 @@ When a player clicks on a cell occupied by an **enemy**, the modal shows:
 
 Clicking **Shoot** fires an animated bullet (fast dot, ~200 ms) from shooter to target; hit applied after animation completes.
 
-- [ ] Modal detects enemy in clicked cell → shows Move + Shoot buttons
-- [ ] `{"action":"shoot","targetID":"..."}` sent to server on Shoot click
-- [ ] Client plays bullet animation (dot travels cell-by-cell path, 200 ms total)
-- [ ] Server validates: shooter alive, not incapacitated, target in range
-- [ ] First hit → health 50, incapacitated (cannot move or shoot)
-- [ ] Second hit → health 0, dead; removed from room after 2 s grace period
-- [ ] Dead player can still withdraw remaining Nano balance
-- [ ] Broadcast updated health state immediately after each hit
-- [ ] Canvas: incapacitated = dimmed circle + ✕ glyph; dead = greyed out
+- [x] Modal detects enemy in clicked cell → shows Move + Shoot buttons
+- [x] `{"action":"shoot","targetID":"..."}` sent to server on Shoot click
+- [x] Client plays bullet animation (gold dot, 200 ms)
+- [x] Server validates: shooter healthy (100), target in range (radius 5)
+- [x] First hit → health 50, incapacitated (cannot move or shoot)
+- [x] Second hit → health 0, dead; removed from room after 2 s grace period
+- [x] Dead player can still withdraw remaining Nano balance
+- [x] Broadcast `{"type":"shot"}` event immediately; state update follows
+- [x] Canvas: incapacitated = dimmed circle + ✕ glyph; dead = greyed out
+- [x] 6 new combat tests (48 total)
 
 ---
 
-## Phase 5 — Medkit System
+## ▶ Phase 5 — Medkit System  ← START HERE
 
 **Goal:** Players can heal incapacitated teammates. Healing earns a Nano fraction.
 

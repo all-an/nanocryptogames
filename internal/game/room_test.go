@@ -134,3 +134,92 @@ func TestRoom_ApplyInput_clampsToGrid(t *testing.T) {
 		t.Errorf("player exceeded right grid bound: GX=%d", p.GX)
 	}
 }
+
+func TestRoom_ApplyShoot_firstHitIncapacitates(t *testing.T) {
+	r := NewRoom("test")
+	shooter := NewPlayer("shooter", "test")
+	target  := NewPlayer("target", "test")
+	r.Join(shooter)
+	r.Join(target)
+
+	// Place them adjacent so the shot is in range.
+	shooter.GX, shooter.GY = 5, 5
+	target.GX,  target.GY  = 6, 5
+
+	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
+
+	if target.Health != 50 {
+		t.Errorf("first hit should reduce health to 50, got %d", target.Health)
+	}
+}
+
+func TestRoom_ApplyShoot_secondHitKills(t *testing.T) {
+	r := NewRoom("test")
+	shooter := NewPlayer("shooter", "test")
+	target  := NewPlayer("target", "test")
+	r.Join(shooter)
+	r.Join(target)
+
+	shooter.GX, shooter.GY = 5, 5
+	target.GX,  target.GY  = 6, 5
+	target.Health = 50 // already incapacitated
+
+	// Shooter is healthy (100); target is incapacitated (50) — second shot kills.
+	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
+
+	if target.Health != 0 {
+		t.Errorf("second hit should reduce health to 0, got %d", target.Health)
+	}
+}
+
+func TestRoom_ApplyShoot_incapacitatedShooterCannotShoot(t *testing.T) {
+	r := NewRoom("test")
+	shooter := NewPlayer("shooter", "test")
+	target  := NewPlayer("target", "test")
+	r.Join(shooter)
+	r.Join(target)
+
+	shooter.GX, shooter.GY = 5, 5
+	target.GX,  target.GY  = 6, 5
+	shooter.Health = 50 // shooter is incapacitated
+
+	startHealth := target.Health
+	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
+
+	if target.Health != startHealth {
+		t.Error("incapacitated shooter should not be able to shoot")
+	}
+}
+
+func TestRoom_ApplyShoot_outOfRangeRejected(t *testing.T) {
+	r := NewRoom("test")
+	shooter := NewPlayer("shooter", "test")
+	target  := NewPlayer("target", "test")
+	r.Join(shooter)
+	r.Join(target)
+
+	// Place 10 cells apart — well beyond movement radius of 5.
+	shooter.GX, shooter.GY = 0, 0
+	target.GX,  target.GY  = 10, 0
+
+	startHealth := target.Health
+	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
+
+	if target.Health != startHealth {
+		t.Error("out-of-range shot should be rejected")
+	}
+}
+
+func TestRoom_ApplyMove_incapacitatedPlayerCannotMove(t *testing.T) {
+	r := NewRoom("test")
+	p := NewPlayer("p1", "test")
+	r.Join(p)
+
+	p.Health = 50 // incapacitated
+	startGX := p.GX
+	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 1, GY: p.GY})
+
+	if p.GX != startGX {
+		t.Error("incapacitated player should not be able to move")
+	}
+}
