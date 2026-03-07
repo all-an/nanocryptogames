@@ -712,6 +712,107 @@ canvas {
 .donate-status-msg.ok  { color: #52C07A; }
 .donate-status-msg.err { color: #e05252; }
 
+/* ── Add Funds button ── */
+
+.add-funds-btn {
+  width: 100%;
+  padding: 9px 0;
+  border-radius: 6px;
+  border: 1px solid rgba(74,144,217,0.5);
+  background: rgba(74,144,217,0.12);
+  color: #4a90d9;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.add-funds-btn:hover {
+  background: rgba(74,144,217,0.22);
+  border-color: #4a90d9;
+}
+
+/* ── Add Funds modal ── */
+
+.funds-modal-box {
+  background: #0f0f1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 12px;
+  padding: 28px 28px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 320px;
+  max-width: 400px;
+}
+
+.funds-modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+}
+
+.funds-limit-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(192,57,43,0.12);
+  border: 1px solid rgba(192,57,43,0.35);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  color: #e05252;
+  line-height: 1.5;
+}
+
+.funds-limit-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.funds-modal-label {
+  font-size: 0.78rem;
+  color: #888;
+}
+
+.funds-address-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.funds-address {
+  font-size: 0.62rem;
+  color: #4a90d9;
+  word-break: break-all;
+  flex: 1;
+  line-height: 1.5;
+  font-family: monospace;
+}
+
+.funds-hint {
+  font-size: 0.75rem;
+  color: #555;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.funds-hint strong {
+  color: #888;
+}
+
+.funds-close-btn {
+  width: 100%;
+  padding: 9px;
+  margin-top: 4px;
+}
+
 /* ── Withdraw button ── */
 
 .withdraw-btn {

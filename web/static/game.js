@@ -632,24 +632,27 @@ function showWithdrawResult(ok, text) {
   setTimeout(() => status.classList.add("hidden"), 6000);
 }
 
-// showDepositPanel populates the sidebar with the player's session Nano address.
+// showDepositPanel populates the sidebar and funds modal with the session address.
 function showDepositPanel(address) {
   document.getElementById("deposit-waiting").classList.add("hidden");
   document.getElementById("deposit-ready").classList.remove("hidden");
 
-  document.getElementById("deposit-address").textContent = address;
+  // Populate the Add Funds modal address fields.
+  document.getElementById("funds-address").textContent = address;
+  document.getElementById("funds-nault-link").href = `https://nault.cc/account/${address}`;
 
-  // Link to Nault web wallet — works in any browser, no install needed.
-  // User can send Nano to the address directly from Nault.
-  document.getElementById("qr-link").href = `https://nault.cc/account/${address}`;
-
-  document.getElementById("copy-btn").addEventListener("click", () => {
+  document.getElementById("funds-copy-btn").addEventListener("click", () => {
     navigator.clipboard.writeText(address).then(() => {
-      const confirm = document.getElementById("copy-confirm");
-      confirm.classList.remove("hidden");
-      setTimeout(() => confirm.classList.add("hidden"), 1500);
+      const el = document.getElementById("funds-copy-confirm");
+      el.classList.remove("hidden");
+      setTimeout(() => el.classList.add("hidden"), 1500);
     });
   });
+
+  document.getElementById("add-funds-btn").addEventListener("click", () =>
+    document.getElementById("funds-modal").classList.remove("hidden"));
+  document.getElementById("funds-close-btn").addEventListener("click", () =>
+    document.getElementById("funds-modal").classList.add("hidden"));
 
   document.getElementById("withdraw-btn").addEventListener("click", sendWithdraw);
 }

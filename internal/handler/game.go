@@ -152,10 +152,26 @@ func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 		return
 	}
 
-	// Push the real on-chain balance to the player so their sidebar stays current.
+	// Push the real on-chain balance and enforce the 0.001 XNO session cap.
 	if info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address); err == nil {
 		bal, ok := new(big.Int).SetString(info.Balance, 10)
 		if ok {
+			// 0.001 XNO = 10^27 raw
+			maxRaw, _ := new(big.Int).SetString("1000000000000000000000000000", 10)
+			if bal.Cmp(maxRaw) > 0 {
+				excess := new(big.Int).Sub(bal, maxRaw)
+				// Return excess to the most recent sender.
+				if len(blocks) > 0 {
+					senderAddr := blocks[len(blocks)-1].details.Account
+					if _, sendErr := nano.Send(ctx, h.rpcClient, wallet, senderAddr, excess.String()); sendErr != nil {
+						log.Printf("deposit cap: return excess to %s: %v", senderAddr, sendErr)
+					} else {
+						log.Printf("deposit cap: returned %s raw excess to %s", excess, senderAddr)
+						bal.Set(maxRaw)
+						info.Balance = maxRaw.String()
+					}
+				}
+			}
 			b, _ := json.Marshal(map[string]string{
 				"type": "balance",
 				"xno":  game.FormatXNO(bal),

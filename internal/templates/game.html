@@ -18,35 +18,19 @@
         </span>
       </button>
 
-      <h2 class="deposit-title">Ӿ Deposit</h2>
+      <h2 class="deposit-title">Ӿ Session Balance</h2>
 
       <div id="deposit-waiting" class="deposit-waiting">
         <p>Connecting…</p>
       </div>
 
       <div id="deposit-ready" class="hidden">
-        <p class="deposit-label">Send Nano to your session address:</p>
-
-        <div class="deposit-address-wrap">
-          <span id="deposit-address" class="deposit-address"></span>
-          <button id="copy-btn" class="copy-btn" title="Copy address">⧉</button>
-        </div>
-        <p id="copy-confirm" class="copy-confirm hidden">Copied!</p>
-
-        <a id="qr-link" class="qr-link" href="#" target="_blank" rel="noopener">
-          Send via Nault web wallet ↗
-        </a>
-
-        <hr class="deposit-divider">
-
         <div class="deposit-balance-row">
-          <span class="deposit-balance-label">Session balance</span>
-          <span id="deposit-balance" class="deposit-balance">— XNO</span>
+          <span class="deposit-balance-label">Balance</span>
+          <span id="deposit-balance" class="deposit-balance">0.000000 XNO</span>
         </div>
 
-        <p class="deposit-note">
-          Funds sent here are yours. Click Withdraw to send your balance back to the address you deposited from.
-        </p>
+        <button id="add-funds-btn" class="add-funds-btn">+ Add Funds</button>
 
         <hr class="deposit-divider">
 
@@ -97,6 +81,37 @@
       <p class="modal-title">Round Over</p>
       <p class="modal-sub" id="round-msg"></p>
       <p class="modal-sub" style="margin-top:6px;color:#555;">Restarting in 3 seconds…</p>
+    </div>
+  </div>
+
+  <!-- Add Funds modal -->
+  <div id="funds-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="funds-modal-box">
+      <p class="funds-modal-title">Add Funds</p>
+
+      <div class="funds-limit-banner">
+        <span class="funds-limit-icon">⚠</span>
+        <span>Maximum <strong>0.001 XNO</strong> per session.<br>Do not send more — excess is returned automatically.</span>
+      </div>
+
+      <p class="funds-modal-label">Send Nano to your session address:</p>
+
+      <div class="funds-address-wrap">
+        <span id="funds-address" class="funds-address"></span>
+        <button id="funds-copy-btn" class="copy-btn" title="Copy address">⧉</button>
+      </div>
+      <p id="funds-copy-confirm" class="copy-confirm hidden">Copied!</p>
+
+      <a id="funds-nault-link" class="qr-link" href="#" target="_blank" rel="noopener">
+        Open in Nault web wallet ↗
+      </a>
+
+      <p class="funds-hint">
+        Each shot costs <strong>0.0001 XNO</strong>.<br>
+        Suggested deposit: <strong>0.0002 – 0.001 XNO</strong>.
+      </p>
+
+      <button id="funds-close-btn" class="btn-secondary funds-close-btn">Close</button>
     </div>
   </div>
 
