@@ -69,6 +69,8 @@ web/
 - [ ] `templates/` — base, lobby, and game HTML
 - [ ] `web/static/game.js` — Canvas renderer + WebSocket client
 - [ ] Player avatar: filled circle with unique colour per player, Ӿ symbol centred inside
+- [ ] Grid-based movement (25×17 grid, 40×40px cells = player diameter)
+- [ ] Lobby shows live active room list, auto-refreshes every 3 s
 - [ ] Local smoke test: two browsers, one room, no money
 
 ### Player Avatar Design
@@ -233,7 +235,98 @@ Source: [publicnodes.somenano.com](https://publicnodes.somenano.com/) — rechec
 
 ---
 
-## Phase 4 — Deployment on Render.com
+## Phase 4 — Combat System
+
+**Goal:** Server-authoritative shooting. One hit incapacitates; two hits kill.
+
+### Combat States
+
+| State | Health | Can move? | Can shoot? | Appearance |
+|---|---|---|---|---|
+| Healthy | 100 | Yes | Yes | Full colour |
+| Incapacitated | 50 | No | No | Dimmed, Ӿ replaced with ✕ |
+| Dead | 0 | No | No | Greyed out, removed after 2 s |
+
+### Shooting UX
+
+When a player clicks on a cell occupied by an **enemy**, the modal shows two buttons:
+
+```
+┌─────────────────────┐
+│  What do you want?  │
+│  [Move]  [Shoot]    │
+└─────────────────────┘
+```
+
+Clicking **Shoot** fires an animated bullet from the shooter's cell to the target cell. The bullet is a fast-moving dot rendered on the Canvas that completes in ~200 ms, then the hit is applied and health updated.
+
+- [ ] Modal detects whether clicked cell contains an enemy or is empty; renders Move / Move+Shoot accordingly
+- [ ] `{"action":"shoot","targetID":"..."}` sent to server on Shoot click
+- [ ] Client plays a bullet animation (fast dot from src → dst over 200 ms) before showing the hit result
+- [ ] Server validates and applies damage; broadcasts updated health immediately
+- [ ] Add `shoot` action to Input: `{"action":"shoot","targetID":"..."}`
+- [ ] Server validates shooter is alive and target is in range (adjacent or line-of-sight)
+- [ ] First hit sets target health to 50 → incapacitated (cannot move or shoot)
+- [ ] Second hit sets health to 0 → dead; player removed from room after 2 s grace period
+- [ ] Dead player can still withdraw remaining Nano balance
+- [ ] Broadcast updated health state immediately after a hit
+- [ ] Incapacitated state shown on canvas: dimmed circle, Ӿ replaced with ✕ symbol
+
+---
+
+## Phase 5 — Medkit System
+
+**Goal:** Players can heal incapacitated teammates. Healing earns the healer a Nano fraction.
+
+### Medkit Rules
+
+- A player can use a medkit on an **incapacitated** (not dead) teammate on an adjacent cell
+- Healed player returns to full health (100) and can move and shoot again
+- Healer receives a small Nano reward (e.g. 0.0005 Ӿ) credited to their session balance
+- Medkits are consumable items found on the map (spawn at fixed grid positions each round)
+
+### Implementation
+
+- [ ] Add medkit spawn positions to room state; broadcast as part of `worldState`
+- [ ] `{"action":"pickup"}` — player on a medkit cell picks it up; max 1 held per player
+- [ ] `{"action":"heal","targetID":"..."}` — uses held medkit on adjacent incapacitated player
+- [ ] Server credits healer's `balance_remaining` with the heal reward
+- [ ] Record heal reward in `nano_transactions` with a `heal_reward` direction
+- [ ] Medkit shown on canvas as a green cross `✚` in the grid cell
+
+```sql
+ALTER TABLE game_sessions ADD COLUMN heals_given INT NOT NULL DEFAULT 0;
+-- heal_reward stored in settings table alongside shot_cost
+-- INSERT INTO settings VALUES ('heal_reward', '0.0005');
+```
+
+---
+
+## Phase 5b — Team Communication
+
+**Goal:** Players can send short messages to teammates during a match. No persistent chat — messages appear as popups and fade.
+
+### UX Flow
+
+```
+Player clicks on a teammate's circle
+  → Small input overlay appears (max 80 chars)
+  → Player types and presses Enter
+  → Message delivered via WebSocket to that specific player only
+  → Recipient sees a popup bubble above their circle for 4 s
+```
+
+### Implementation
+
+- [ ] `{"action":"msg","targetID":"...","text":"..."}` — sent from client to server
+- [ ] Server validates sender and target are in the same room; strips control characters
+- [ ] Server relays `{"type":"msg","fromID":"...","text":"..."}` only to the target player's WebSocket
+- [ ] Client renders message bubble above the target's circle using Canvas `fillText`; fades out after 4 s
+- [ ] Messages are not persisted — in-memory relay only
+
+---
+
+## Phase 7 — Deployment on Render.com
 
 **Goal:** Live on Render with free Postgres, secret env vars.
 
@@ -271,7 +364,7 @@ databases:
 
 ---
 
-## Phase 5 — Self-Hosted Nano Node
+## Phase 8 — Self-Hosted Nano Node
 
 **Goal:** Replace public node with own node for reliability, push notifications, and privacy.
 
@@ -294,7 +387,7 @@ conn.Subscribe("confirmation", func(block NanoBlock) {
 
 ---
 
-## Phase 6 — Shot Economy & Donation
+## Phase 9 — Shot Economy & Donation
 
 **Goal:** Every shot costs a micro-amount of Nano. The first shot fired during play triggers a one-time donation to the owner — the game continues normally, it happens in the background.
 
@@ -337,7 +430,7 @@ ALTER TABLE game_sessions
 
 ---
 
-## Phase 7 — Player Withdrawal
+## Phase 10 — Player Withdrawal
 
 **Goal:** After a match (or at any point), a player can withdraw their remaining Nano balance to any address — no account required.
 
@@ -360,7 +453,7 @@ Match ends → winner banner shown
 
 ---
 
-## Phase 8 — Admin Panel
+## Phase 11 — Admin Panel
 
 **Goal:** Owner-only web UI to view stats, adjust shot economy, and update the donation address — without redeploying.
 
@@ -387,7 +480,7 @@ Match ends → winner banner shown
 
 ---
 
-## Phase 9 — Hardening & Scale
+## Phase 12 — Hardening & Scale
 
 - [ ] End-to-end tests for deposit → shoot → payout → withdrawal flow
 - [ ] Cleanup job: sweep unclaimed session balances after 24 h

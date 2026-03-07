@@ -66,6 +66,75 @@ body {
   background: #357abd;
 }
 
+/* ── Room list ── */
+
+.room-list-wrap {
+  width: 340px;
+  margin-top: 8px;
+}
+
+.room-list-title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #555;
+  margin-bottom: 10px;
+}
+
+.room-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.room-list-empty {
+  color: #444;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 16px 0;
+}
+
+.room-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #0f0f1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.room-name {
+  flex: 1;
+  font-size: 0.95rem;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-players {
+  font-size: 0.8rem;
+  color: #555;
+  white-space: nowrap;
+}
+
+.room-join-btn {
+  padding: 5px 14px;
+  border-radius: 5px;
+  background: #4a90d9;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.room-join-btn:hover {
+  background: #357abd;
+}
+
 /* ── Game ── */
 
 .game-wrap {
@@ -108,4 +177,70 @@ canvas {
 .controls-hint {
   color: #555;
   font-size: 0.8rem;
+}
+
+/* ── Modal ── */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 100;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-box {
+  background: #0f0f1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 10px;
+  padding: 28px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-width: 200px;
+}
+
+.modal-title {
+  font-size: 1.1rem;
+  color: #fff;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.modal-actions button {
+  padding: 8px 22px;
+  border-radius: 6px;
+  border: none;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal-actions button:first-child {
+  background: #4a90d9;
+  color: #fff;
+}
+
+.modal-actions button:first-child:hover {
+  background: #357abd;
+}
+
+.btn-secondary {
+  background: #1e1e30 !important;
+  color: #888 !important;
+  border: 1px solid #2a2a4a !important;
+}
+
+.btn-secondary:hover {
+  color: #fff !important;
 }

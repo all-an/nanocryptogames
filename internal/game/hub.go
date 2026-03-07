@@ -11,9 +11,27 @@ type Hub struct {
 	rooms map[string]*Room
 }
 
+// RoomSummary is a lightweight snapshot of a room used for the lobby listing.
+type RoomSummary struct {
+	ID          string `json:"id"`
+	PlayerCount int    `json:"playerCount"`
+}
+
 // NewHub creates an empty Hub ready for use.
 func NewHub() *Hub {
 	return &Hub{rooms: make(map[string]*Room)}
+}
+
+// ActiveRooms returns a snapshot of all rooms that currently have players.
+func (h *Hub) ActiveRooms() []RoomSummary {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	rooms := make([]RoomSummary, 0, len(h.rooms))
+	for _, r := range h.rooms {
+		rooms = append(rooms, RoomSummary{ID: r.ID, PlayerCount: r.currentPlayerCount()})
+	}
+	return rooms
 }
 
 // JoinRoom adds the player to the named room, creating the room if it does not exist.

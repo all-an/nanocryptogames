@@ -11,10 +11,24 @@
       <span class="room-label">Room: <strong>{{.RoomID}}</strong></span>
       <a href="/" class="leave">Leave</a>
     </div>
+
     <!-- data-room is read by game.js to build the WebSocket URL -->
-    <canvas id="game" data-room="{{.RoomID}}" width="1000" height="700"></canvas>
-    <p class="controls-hint">Move: WASD or arrow keys</p>
+    <canvas id="game" data-room="{{.RoomID}}" width="1000" height="680"></canvas>
+
+    <p class="controls-hint">Move: WASD / arrow keys (one square) &nbsp;·&nbsp; or click an adjacent square</p>
   </div>
+
+  <!-- Move confirmation modal — shown when the player clicks an adjacent square -->
+  <div id="move-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <p class="modal-title">Move here?</p>
+      <div class="modal-actions">
+        <button id="modal-confirm">Move</button>
+        <button id="modal-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/game.js"></script>
 </body>
 </html>

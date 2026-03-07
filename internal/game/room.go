@@ -1,4 +1,4 @@
-// room.go manages the lifecycle of a single game room and its 20 TPS tick loop.
+// room.go manages the lifecycle of a single game room and its tick loop.
 package game
 
 import (
@@ -7,31 +7,31 @@ import (
 	"time"
 )
 
-const tickRate = 50 * time.Millisecond // 20 TPS
+const tickRate = 50 * time.Millisecond // 20 TPS — used for state broadcast heartbeat
 
-// spawnPoints are fixed starting positions spread across the arena.
-var spawnPoints = [][2]float64{
-	{100, 100}, {900, 100}, {500, 350},
-	{100, 600}, {900, 600}, {300, 200},
-	{700, 500}, {500, 600},
+// spawnPoints are fixed grid positions spread across the arena.
+var spawnPoints = [][2]int{
+	{1, 1}, {23, 1}, {12, 8},
+	{1, 15}, {23, 15}, {6, 5},
+	{18, 5}, {12, 15},
 }
 
-// Input is a movement command sent by a player each time their key state changes.
+// Input is a move command sent by a player targeting a specific grid cell.
 type Input struct {
 	PlayerID string
-	DX, DY   float64 // direction vector, each axis in [-1, 1]
+	GX, GY   int // target grid column and row
 }
 
 // playerState is the per-player snapshot included in each broadcast.
 type playerState struct {
-	ID     string  `json:"id"`
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
-	Health int     `json:"health"`
-	Color  string  `json:"color"`
+	ID     string `json:"id"`
+	GX     int    `json:"gx"`
+	GY     int    `json:"gy"`
+	Health int    `json:"health"`
+	Color  string `json:"color"`
 }
 
-// worldState is the full game state sent to every client each tick.
+// worldState is the full game snapshot sent to every client each tick.
 type worldState struct {
 	Type    string        `json:"type"`
 	Players []playerState `json:"players"`
@@ -65,10 +65,12 @@ func (r *Room) Run() {
 	for {
 		select {
 		case <-ticker.C:
-			r.applyVelocities()
+			// Heartbeat broadcast keeps clients in sync even without movement.
 			r.broadcastState()
 		case input := <-r.inputCh:
+			// Apply move and immediately push the updated state.
 			r.applyInput(input)
+			r.broadcastState()
 		case <-r.done:
 			return
 		}
@@ -82,7 +84,7 @@ func (r *Room) Join(p *Player) {
 
 	p.Color = colorPalette[r.playerCount%len(colorPalette)]
 	spawn := spawnPoints[r.playerCount%len(spawnPoints)]
-	p.X, p.Y = spawn[0], spawn[1]
+	p.GX, p.GY = spawn[0], spawn[1]
 	r.playerCount++
 
 	r.players[p.ID] = p
@@ -107,8 +109,7 @@ func (r *Room) Close() {
 	close(r.done)
 }
 
-// Submit queues a player input for processing on the next tick.
-// Non-blocking: drops the input if the channel buffer is full.
+// Submit queues a player move for processing. Non-blocking: drops if buffer is full.
 func (r *Room) Submit(input Input) {
 	select {
 	case r.inputCh <- input:
@@ -116,7 +117,14 @@ func (r *Room) Submit(input Input) {
 	}
 }
 
-// applyInput updates a player's stored velocity direction.
+// currentPlayerCount returns the number of players currently in the room.
+func (r *Room) currentPlayerCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.players)
+}
+
+// applyInput validates and applies a move. Ignores non-adjacent or out-of-bounds moves.
 func (r *Room) applyInput(input Input) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -125,21 +133,13 @@ func (r *Room) applyInput(input Input) {
 	if !ok {
 		return
 	}
-	p.Vx = input.DX
-	p.Vy = input.DY
-}
 
-// applyVelocities moves every player by their current velocity and clamps to the arena.
-func (r *Room) applyVelocities() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for _, p := range r.players {
-		p.X, p.Y = clampToArena(
-			p.X+p.Vx*MoveSpeed,
-			p.Y+p.Vy*MoveSpeed,
-		)
+	// Server enforces adjacency — clients cannot teleport.
+	if !isAdjacentMove(p.GX, p.GY, input.GX, input.GY) {
+		return
 	}
+
+	p.GX, p.GY = clampToGrid(input.GX, input.GY)
 }
 
 // broadcastState serialises the current world snapshot and fans it out to all players.
@@ -151,8 +151,8 @@ func (r *Room) broadcastState() {
 	for _, p := range r.players {
 		state.Players = append(state.Players, playerState{
 			ID:     p.ID,
-			X:      p.X,
-			Y:      p.Y,
+			GX:     p.GX,
+			GY:     p.GY,
 			Health: p.Health,
 			Color:  p.Color,
 		})

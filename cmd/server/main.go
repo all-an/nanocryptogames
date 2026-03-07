@@ -37,6 +37,9 @@ func main() {
 	mux.Handle("GET /game", gamePage)
 	mux.Handle("GET /game/{roomID}", gamePage)
 
+	// Active room list — polled by the lobby page every few seconds
+	mux.Handle("GET /api/rooms", handler.NewRoomsHandler(hub))
+
 	// WebSocket endpoint — one connection per player
 	mux.Handle("GET /ws/{roomID}", handler.NewWSHandler(hub))
 

@@ -18,14 +18,13 @@ type Player struct {
 	ID     string
 	RoomID string
 	Color  string
-	X, Y   float64 // current position
-	Vx, Vy float64 // velocity direction (-1, 0 or 1 per axis)
+	GX, GY int // grid position (column, row)
 	Health int
 	send   chan []byte // outbound messages to this player's WebSocket
 }
 
 // NewPlayer creates a Player with full health and a buffered send channel.
-// Color is assigned later by the room on join.
+// Color and starting position are assigned by the room on join.
 func NewPlayer(id, roomID string) *Player {
 	return &Player{
 		ID:     id,

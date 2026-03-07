@@ -31,9 +31,8 @@ func TestPlayer_IsAlive(t *testing.T) {
 
 func TestPlayer_Send_buffers_message(t *testing.T) {
 	p := NewPlayer("id1", "room1")
-	msg := []byte("hello")
 
-	p.Send(msg)
+	p.Send([]byte("hello"))
 
 	select {
 	case got := <-p.Messages():
@@ -48,7 +47,7 @@ func TestPlayer_Send_buffers_message(t *testing.T) {
 func TestPlayer_Send_dropsWhenFull(t *testing.T) {
 	p := NewPlayer("id1", "room1")
 
-	// Fill the buffer (capacity 64) and then add one more — should not block.
+	// Fill the buffer (capacity 64) then add one more — must not block.
 	for i := 0; i < 65; i++ {
 		p.Send([]byte("x"))
 	}

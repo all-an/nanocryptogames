@@ -8,21 +8,20 @@ import (
 
 func TestRoom_JoinAssignsColorAndSpawn(t *testing.T) {
 	r := NewRoom("test")
-
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
 	if p.Color == "" {
 		t.Error("Join must assign a colour")
 	}
-	if p.X == 0 && p.Y == 0 {
+	// Spawn must be a valid non-zero grid position (first spawn is {1,1}).
+	if p.GX == 0 && p.GY == 0 {
 		t.Error("Join must assign a non-zero spawn position")
 	}
 }
 
 func TestRoom_JoinAssignsDifferentColors(t *testing.T) {
 	r := NewRoom("test")
-
 	p1 := NewPlayer("p1", "test")
 	p2 := NewPlayer("p2", "test")
 	r.Join(p1)
@@ -78,44 +77,55 @@ func TestRoom_BroadcastState_sendsJSON(t *testing.T) {
 	}
 }
 
-func TestRoom_Submit_applyInput(t *testing.T) {
+func TestRoom_ApplyInput_adjacentMove(t *testing.T) {
 	r := NewRoom("test")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
-	r.applyInput(Input{PlayerID: "p1", DX: 1, DY: 0})
+	startGX := p.GX
+	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 1, GY: p.GY})
 
-	if p.Vx != 1 || p.Vy != 0 {
-		t.Errorf("expected Vx=1 Vy=0, got Vx=%v Vy=%v", p.Vx, p.Vy)
+	if p.GX != startGX+1 {
+		t.Errorf("expected GX %d, got %d", startGX+1, p.GX)
 	}
 }
 
-func TestRoom_ApplyVelocities_movesPlayer(t *testing.T) {
+func TestRoom_ApplyInput_rejectsDiagonal(t *testing.T) {
 	r := NewRoom("test")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
-	startX := p.X
-	p.Vx = 1
+	startGX, startGY := p.GX, p.GY
+	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 1, GY: p.GY + 1})
 
-	r.applyVelocities()
-
-	if p.X <= startX {
-		t.Errorf("player should have moved right: startX=%v newX=%v", startX, p.X)
+	if p.GX != startGX || p.GY != startGY {
+		t.Error("diagonal move should be rejected")
 	}
 }
 
-func TestRoom_ApplyVelocities_clampsToArena(t *testing.T) {
+func TestRoom_ApplyInput_rejectsTwoSteps(t *testing.T) {
 	r := NewRoom("test")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
-	// Push hard against the right wall.
-	p.X = ArenaWidth
-	p.Vx = 1
-	r.applyVelocities()
+	startGX := p.GX
+	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 2, GY: p.GY})
 
-	if p.X > ArenaWidth-PlayerRadius {
-		t.Errorf("player exceeded arena right bound: x=%v", p.X)
+	if p.GX != startGX {
+		t.Error("two-step move should be rejected")
+	}
+}
+
+func TestRoom_ApplyInput_clampsToGrid(t *testing.T) {
+	r := NewRoom("test")
+	p := NewPlayer("p1", "test")
+	r.Join(p)
+
+	// Place player at right edge and try to move one step further right.
+	p.GX = GridCols - 1
+	r.applyInput(Input{PlayerID: "p1", GX: GridCols, GY: p.GY})
+
+	if p.GX > GridCols-1 {
+		t.Errorf("player exceeded right grid bound: GX=%d", p.GX)
 	}
 }
