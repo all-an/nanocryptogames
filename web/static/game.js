@@ -70,6 +70,7 @@ ws.onmessage = (event) => {
     myID   = msg.id;
     myTeam = msg.team;
     if (msg.nanoAddress) showDepositPanel(msg.nanoAddress);
+    updateBalance("0.000000");
 
   } else if (msg.type === "state") {
     for (const p of msg.players) {
@@ -119,8 +120,17 @@ ws.onmessage = (event) => {
       healFlashes.push({ px: tv.px, py: tv.py, startTime: performance.now(), duration: 600 });
     }
 
+  } else if (msg.type === "balance") {
+    updateBalance(msg.xno);
+
+  } else if (msg.type === "roundover") {
+    showRoundOver(msg.killerID, msg.prize);
+
+  } else if (msg.type === "newround") {
+    hideRoundOver();
+    document.getElementById("death-overlay").classList.add("hidden");
+
   } else if (msg.type === "died") {
-    // Show the death overlay; it fades away when the server removes the player.
     document.getElementById("death-overlay").classList.remove("hidden");
   }
 };
@@ -486,6 +496,33 @@ function drawBullets() {
 }
 
 // ── Deposit panel ─────────────────────────────────────────────────────────────
+
+// updateBalance refreshes the balance display in the deposit panel.
+function updateBalance(xno) {
+  const el = document.getElementById("deposit-balance");
+  if (el) el.textContent = `${xno} XNO`;
+}
+
+// showRoundOver displays the round-over overlay with winner info and countdown.
+function showRoundOver(killerID, prize) {
+  const overlay = document.getElementById("round-overlay");
+  const msg     = document.getElementById("round-msg");
+  const isMe    = killerID === myID;
+
+  if (isMe) {
+    msg.textContent = `You earned +${prize} XNO this round!`;
+  } else {
+    const killer = state.players?.find(p => p.id === killerID);
+    const team   = killer ? killer.team : "a player";
+    msg.textContent = `${team.charAt(0).toUpperCase() + team.slice(1)} team got a kill! Round restarting…`;
+  }
+
+  overlay.classList.remove("hidden");
+}
+
+function hideRoundOver() {
+  document.getElementById("round-overlay").classList.add("hidden");
+}
 
 // showDepositPanel populates the sidebar with the player's session Nano address.
 function showDepositPanel(address) {

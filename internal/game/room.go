@@ -3,11 +3,16 @@ package game
 
 import (
 	"encoding/json"
+	"math/big"
 	"sync"
 	"time"
 )
 
 const tickRate = 50 * time.Millisecond // 20 TPS — used for state broadcast heartbeat
+
+// defaultShotCostRaw is 0.0001 XNO expressed in raw Nano units (10^26 raw).
+// This value is used when the DB is not connected; it can be overridden via SetShotCost.
+var defaultShotCostRaw, _ = new(big.Int).SetString("100000000000000000000000000", 10)
 
 // spawnPoints are fixed grid positions spread across the arena.
 var spawnPoints = [][2]int{
@@ -38,6 +43,19 @@ type helpEvent struct {
 	TargetID string `json:"targetID"`
 }
 
+// roundOverEvent is broadcast when a player is killed, before the restart.
+type roundOverEvent struct {
+	Type     string `json:"type"`
+	KillerID string `json:"killerID"`
+	Prize    string `json:"prize"` // human-readable XNO amount
+}
+
+// balanceEvent is sent privately to a single player after their balance changes.
+type balanceEvent struct {
+	Type string `json:"type"`
+	XNO  string `json:"xno"` // human-readable balance, e.g. "0.000300"
+}
+
 // playerState is the per-player snapshot included in each broadcast.
 type playerState struct {
 	ID     string `json:"id"`
@@ -61,17 +79,26 @@ type Room struct {
 	inputCh     chan Input
 	done        chan struct{}
 	mu          sync.RWMutex
-	playerCount int // total players ever joined; used for colour and spawn assignment
+	playerCount int      // total players ever joined; used for colour and spawn assignment
+	shotCostRaw *big.Int // cost per shot in raw Nano units
 }
 
 // NewRoom creates a Room ready to accept players.
 func NewRoom(id string) *Room {
 	return &Room{
-		ID:      id,
-		players: make(map[string]*Player),
-		inputCh: make(chan Input, 256),
-		done:    make(chan struct{}),
+		ID:          id,
+		players:     make(map[string]*Player),
+		inputCh:     make(chan Input, 256),
+		done:        make(chan struct{}),
+		shotCostRaw: new(big.Int).Set(defaultShotCostRaw),
 	}
+}
+
+// SetShotCost overrides the default shot cost. Call this before players join.
+func (r *Room) SetShotCost(raw *big.Int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.shotCostRaw = new(big.Int).Set(raw)
 }
 
 // Run starts the room's tick loop. Call this in a dedicated goroutine.
@@ -102,6 +129,7 @@ func (r *Room) Join(p *Player) {
 	p.Color = colorPalette[r.playerCount%len(colorPalette)]
 	spawn := spawnPoints[r.playerCount%len(spawnPoints)]
 	p.GX, p.GY = spawn[0], spawn[1]
+	p.SpawnGX, p.SpawnGY = spawn[0], spawn[1]
 	r.playerCount++
 
 	r.players[p.ID] = p
@@ -186,10 +214,9 @@ func (r *Room) applyMove(input Input) {
 	p.GX, p.GY = clampToGrid(input.GX, input.GY)
 }
 
-// applyShoot handles a shoot action: validates, applies damage, broadcasts the shot event.
-// A healthy player at health 100 can shoot; the shot reduces target health by 50.
-// First hit (100→50) incapacitates; second hit (50→0) kills.
-// Dead players are removed from the room after a 2-second grace period.
+// applyShoot handles a shoot action: validates, deducts shot cost, applies damage,
+// and on a kill awards the prize (2 × shot_cost refund + 1 × shot_cost bonus)
+// then schedules a round restart after 3 seconds.
 func (r *Room) applyShoot(input Input) {
 	r.mu.Lock()
 
@@ -217,9 +244,12 @@ func (r *Room) applyShoot(input Input) {
 		return
 	}
 
+	// Deduct shot cost from shooter's balance.
+	shooter.BalanceRaw.Sub(shooter.BalanceRaw, r.shotCostRaw)
+	shooterBalanceXNO := shooter.BalanceXNO()
+
 	target.Health -= 50
-	isDead := target.Health == 0
-	deadTarget := target
+	isKill := target.Health == 0
 
 	// Broadcast the shot event so clients can animate the bullet.
 	evt, _ := json.Marshal(shotEvent{
@@ -231,23 +261,43 @@ func (r *Room) applyShoot(input Input) {
 		p.Send(evt)
 	}
 
+	// On a kill: award the prize (3 × shot_cost = 2 refund + 1 bonus) and
+	// broadcast the round-over event. The round restarts after 3 seconds.
+	var prizeXNO string
+	if isKill {
+		prize := new(big.Int).Mul(r.shotCostRaw, big.NewInt(3))
+		shooter.BalanceRaw.Add(shooter.BalanceRaw, prize)
+		shooterBalanceXNO = shooter.BalanceXNO() // refresh after prize
+		prizeXNO = FormatXNO(r.shotCostRaw)       // prize = 1 × shot_cost net gain
+
+		roundOver, _ := json.Marshal(roundOverEvent{
+			Type:     "roundover",
+			KillerID: input.PlayerID,
+			Prize:    prizeXNO,
+		})
+		for _, p := range r.players {
+			p.Send(roundOver)
+		}
+	}
+
 	r.mu.Unlock()
 
-	// After a 2-second grace period, remove the dead player from the room.
-	if isDead {
+	// Send updated balance privately to the shooter.
+	balMsg, _ := json.Marshal(balanceEvent{Type: "balance", XNO: shooterBalanceXNO})
+	shooter.Send(balMsg)
+
+	// After a kill, restart the round after a 3-second grace period.
+	if isKill {
 		go func() {
-			time.Sleep(2 * time.Second)
-			r.mu.Lock()
-			delete(r.players, deadTarget.ID)
-			r.mu.Unlock()
+			time.Sleep(3 * time.Second)
+			r.restartRound()
 		}()
 	}
 }
 
 // applyHelp handles a medical help action.
-// A healthy player adjacent (Chebyshev distance ≤ 1) to an incapacitated player
+// A healthy player adjacent (Chebyshev distance ≤ 1) to an incapacitated teammate
 // can give medical help, restoring the target to full health.
-// The heal_reward Nano credit is handled by Phase 9 (shot economy).
 func (r *Room) applyHelp(input Input) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -285,6 +335,23 @@ func (r *Room) applyHelp(input Input) {
 	for _, p := range r.players {
 		p.Send(evt)
 	}
+}
+
+// restartRound resets every player to full health at their spawn position and
+// broadcasts a "newround" event followed by the updated world state.
+func (r *Room) restartRound() {
+	r.mu.Lock()
+
+	newRound, _ := json.Marshal(map[string]string{"type": "newround"})
+	for _, p := range r.players {
+		p.Health = 100
+		p.GX, p.GY = p.SpawnGX, p.SpawnGY
+		p.Send(newRound)
+	}
+
+	r.mu.Unlock()
+
+	r.broadcastState()
 }
 
 // broadcastState serialises the current world snapshot and fans it out to all players.

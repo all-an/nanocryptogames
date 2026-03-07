@@ -74,7 +74,16 @@
   <div id="death-overlay" class="modal hidden" role="alert">
     <div class="modal-box">
       <p class="modal-title">You were eliminated</p>
-      <p class="modal-sub">Spectating for 2 seconds…</p>
+      <p class="modal-sub">Round restarting in 3 seconds…</p>
+    </div>
+  </div>
+
+  <!-- Round-over overlay — shown to all players after a kill -->
+  <div id="round-overlay" class="modal hidden" role="alert">
+    <div class="modal-box">
+      <p class="modal-title">Round Over</p>
+      <p class="modal-sub" id="round-msg"></p>
+      <p class="modal-sub" style="margin-top:6px;color:#555;">Restarting in 3 seconds…</p>
     </div>
   </div>
 

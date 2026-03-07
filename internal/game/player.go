@@ -1,6 +1,11 @@
 // player.go defines per-player state held in memory during a game session.
 package game
 
+import (
+	"fmt"
+	"math/big"
+)
+
 // colorPalette is the fixed set of player colours, assigned by join order.
 var colorPalette = []string{
 	"#4A90D9", // Nano blue
@@ -22,8 +27,11 @@ type Player struct {
 	RoomID      string
 	Color       string
 	Team        string // "red" or "blue" — chosen in the lobby
-	GX, GY      int    // grid position (column, row)
+	GX, GY      int    // current grid position (column, row)
+	SpawnGX     int    // spawn column assigned on join — used for round restarts
+	SpawnGY     int    // spawn row assigned on join — used for round restarts
 	Health      int
+	BalanceRaw  *big.Int // session balance in raw Nano units (tracks credits/debits)
 	send        chan []byte // outbound messages to this player's WebSocket
 }
 
@@ -31,11 +39,43 @@ type Player struct {
 // Color, position, and Nano fields are assigned by the room or handler.
 func NewPlayer(id, roomID string) *Player {
 	return &Player{
-		ID:     id,
-		RoomID: roomID,
-		Health: 100,
-		send:   make(chan []byte, 64),
+		ID:         id,
+		RoomID:     roomID,
+		Health:     100,
+		BalanceRaw: new(big.Int),
+		send:       make(chan []byte, 64),
 	}
+}
+
+// BalanceXNO returns the player's balance formatted as a human-readable XNO
+// string with 6 decimal places, e.g. "0.000300". Negative balances are shown
+// with a leading minus sign.
+func (p *Player) BalanceXNO() string {
+	return FormatXNO(p.BalanceRaw)
+}
+
+// FormatXNO converts a raw Nano amount to a human-readable XNO string (6 dp).
+// 1 XNO = 10^30 raw.
+func FormatXNO(raw *big.Int) string {
+	if raw == nil || raw.Sign() == 0 {
+		return "0.000000"
+	}
+	neg := raw.Sign() < 0
+	abs := new(big.Int).Abs(raw)
+
+	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(30), nil)
+	whole := new(big.Int).Div(abs, divisor)
+	rem := new(big.Int).Mod(abs, divisor)
+
+	// Scale remainder to 6 decimal places: rem * 10^6 / 10^30 = rem / 10^24.
+	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(24), nil)
+	frac := new(big.Int).Div(rem, scale)
+
+	result := fmt.Sprintf("%d.%06d", whole, frac)
+	if neg {
+		return "-" + result
+	}
+	return result
 }
 
 // Send queues a message for delivery over the WebSocket.
