@@ -494,9 +494,9 @@ function showDepositPanel(address) {
 
   document.getElementById("deposit-address").textContent = address;
 
-  // Nano URI opens compatible wallets (Natrium, Nault, etc.).
-  const uri = `nano:${address}`;
-  document.getElementById("qr-link").href = uri;
+  // Link to Nault web wallet — works in any browser, no install needed.
+  // User can send Nano to the address directly from Nault.
+  document.getElementById("qr-link").href = `https://nault.cc/account/${address}`;
 
   document.getElementById("copy-btn").addEventListener("click", () => {
     navigator.clipboard.writeText(address).then(() => {
