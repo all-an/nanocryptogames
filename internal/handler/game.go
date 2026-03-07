@@ -79,9 +79,12 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Team = team
 
-	// Persist player and session when DB is available.
-	if h.db != nil && len(h.masterSeed) > 0 {
+	// Always derive a Nano address — master seed is guaranteed non-empty.
+	// Persist the full player/session record only when a DB is connected.
+	if h.db != nil {
 		h.persistPlayer(r.Context(), p)
+	} else if len(h.masterSeed) > 0 {
+		h.deriveAddressOnly(p)
 	}
 
 	room := h.hub.JoinRoom(roomID, p)
@@ -132,6 +135,22 @@ func (h *WSHandler) persistPlayer(ctx context.Context, p *game.Player) {
 		return
 	}
 	p.SessionID = sessionID
+}
+
+// deriveAddressOnly derives a Nano address for the player without touching the DB.
+// Used in local dev when DATABASE_URL is not set; the index is random so addresses
+// are ephemeral and not guaranteed unique across restarts.
+func (h *WSHandler) deriveAddressOnly(p *game.Player) {
+	var buf [4]byte
+	rand.Read(buf[:])
+	index := uint32(buf[0])<<24 | uint32(buf[1])<<16 | uint32(buf[2])<<8 | uint32(buf[3])
+
+	address, err := nano.DeriveAddress(h.masterSeed, index)
+	if err != nil {
+		log.Printf("wallet: derive address index=%d: %v", index, err)
+		return
+	}
+	p.NanoAddress = address
 }
 
 // readPump reads client input messages and forwards them to the room's input channel.
