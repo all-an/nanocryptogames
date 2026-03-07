@@ -668,6 +668,14 @@ function showDepositPanel(address) {
     document.getElementById("funds-modal").classList.add("hidden"));
 
   document.getElementById("withdraw-btn").addEventListener("click", sendWithdraw);
+
+  document.getElementById("refresh-balance-btn").addEventListener("click", () => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    const btn = document.getElementById("refresh-balance-btn");
+    btn.classList.add("spinning");
+    ws.send(JSON.stringify({ action: "refresh_balance" }));
+    setTimeout(() => btn.classList.remove("spinning"), 1200);
+  });
 }
 
 draw();

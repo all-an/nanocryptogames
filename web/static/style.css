@@ -270,6 +270,31 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
   color: #52C07A;
+  flex: 1;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.refresh-btn {
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.refresh-btn:hover { color: #fff; }
+
+.refresh-btn.spinning {
+  display: inline-block;
+  animation: spin 0.6s linear infinite;
+  color: #4a90d9;
 }
 
 .deposit-note {

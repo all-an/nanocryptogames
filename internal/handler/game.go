@@ -124,7 +124,9 @@ func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 		return
 	}
 
-	// Collect sender details before receiving (block_info only works on unconfirmed blocks).
+	// Collect sender details for the DB audit trail (best-effort).
+	// BlockInfo failures are logged but do NOT block receiving — we always
+	// proceed to ReceivePending regardless of how many details we obtained.
 	type pending struct {
 		hash    string
 		details *nano.BlockDetails
@@ -133,14 +135,10 @@ func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 	for _, hash := range hashes {
 		details, err := h.rpcClient.BlockInfo(ctx, hash)
 		if err != nil {
-			log.Printf("deposit: block_info %s: %v", hash[:8], err)
+			log.Printf("deposit: block_info %s: %v (will still receive)", hash[:8], err)
 			continue
 		}
 		blocks = append(blocks, pending{hash: hash, details: details})
-	}
-
-	if len(blocks) == 0 {
-		return
 	}
 
 	// Receive all pending blocks on-chain in one pass.
@@ -410,6 +408,16 @@ func (h *WSHandler) readPump(conn *websocket.Conn, p *game.Player, room *game.Ro
 			AmountRaw string `json:"amountRaw"`
 		}
 		if json.Unmarshal(msg, &raw) != nil {
+			continue
+		}
+
+		if raw.Action == "refresh_balance" {
+			go func() {
+				ctx2, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				h.checkDeposits(ctx2, p)
+				h.pushBalance(ctx2, p)
+			}()
 			continue
 		}
 
