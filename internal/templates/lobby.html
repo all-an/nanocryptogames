@@ -10,7 +10,7 @@
     <h1>Ӿ Nano Multiplayer</h1>
     <p class="subtitle">Join an existing room or create a new one</p>
 
-    <form class="lobby-form" action="/game" method="get">
+    <form class="lobby-form" id="create-form">
       <input
         type="text"
         name="room"
@@ -19,7 +19,7 @@
         autocomplete="off"
         required
       >
-      <button type="submit">Join / Create</button>
+      <button type="submit">Create / Join</button>
     </form>
 
     <div class="room-list-wrap">
@@ -30,8 +30,55 @@
     </div>
   </div>
 
+  <!-- Team picker modal — shown before entering any room -->
+  <div id="team-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <p class="modal-title">Choose your team</p>
+      <p class="modal-sub" id="team-room-name"></p>
+      <div class="team-buttons">
+        <button id="team-red" class="btn-team btn-team-red">Red</button>
+        <button id="team-blue" class="btn-team btn-team-blue">Blue</button>
+      </div>
+      <button id="team-cancel" class="btn-secondary" style="margin-top:8px;">Cancel</button>
+    </div>
+  </div>
+
   <script>
-    // Poll /api/rooms every 3 s and re-render the list.
+    let pendingRoom = null;
+
+    // showTeamPicker is called before navigating to a room.
+    function showTeamPicker(roomID) {
+      pendingRoom = roomID;
+      document.getElementById("team-room-name").textContent = roomID;
+      document.getElementById("team-modal").classList.remove("hidden");
+      document.getElementById("team-red").focus();
+    }
+
+    function hideTeamPicker() {
+      pendingRoom = null;
+      document.getElementById("team-modal").classList.add("hidden");
+    }
+
+    function joinWithTeam(team) {
+      if (!pendingRoom) return;
+      window.location.href = `/game/${encodeURIComponent(pendingRoom)}?team=${team}`;
+    }
+
+    document.getElementById("team-red").addEventListener("click",  () => joinWithTeam("red"));
+    document.getElementById("team-blue").addEventListener("click", () => joinWithTeam("blue"));
+    document.getElementById("team-cancel").addEventListener("click", hideTeamPicker);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTeamPicker(); });
+
+    // Create form — intercept submit and show team picker instead of navigating directly.
+    document.getElementById("create-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const roomName = document.getElementById("room-input").value.trim();
+      if (!roomName) return;
+      showTeamPicker(roomName);
+    });
+
+    // ── Room list ────────────────────────────────────────────────────────────
+
     async function loadRooms() {
       try {
         const res = await fetch("/api/rooms");
@@ -50,15 +97,16 @@
         return;
       }
 
-      list.innerHTML = rooms
-        .map(r => `
-          <li class="room-item">
-            <span class="room-name">${escapeHtml(r.id)}</span>
-            <span class="room-players">${r.playerCount} player${r.playerCount === 1 ? "" : "s"}</span>
-            <a class="room-join-btn" href="/game/${encodeURIComponent(r.id)}">Join</a>
-          </li>
-        `)
-        .join("");
+      list.innerHTML = rooms.map(r => `
+        <li class="room-item">
+          <span class="room-name">${escapeHtml(r.id)}</span>
+          <span class="room-players">${r.playerCount} player${r.playerCount === 1 ? "" : "s"}</span>
+          <div class="room-join-group">
+            <button class="room-join-btn btn-team-red-sm" onclick="showTeamPicker('${escapeJs(r.id)}')">Red</button>
+            <button class="room-join-btn btn-team-blue-sm" onclick="showTeamPicker('${escapeJs(r.id)}'); document.getElementById('team-blue').click()">Blue</button>
+          </div>
+        </li>
+      `).join("");
     }
 
     // Prevent XSS from room names set by other users.
@@ -66,6 +114,10 @@
       return str.replace(/[&<>"']/g, c => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
       }[c]));
+    }
+
+    function escapeJs(str) {
+      return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     }
 
     loadRooms();

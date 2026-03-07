@@ -21,7 +21,8 @@ type Player struct {
 	NanoAddress string // derived nano_ address for this session wallet
 	RoomID      string
 	Color       string
-	GX, GY      int // grid position (column, row)
+	Team        string // "red" or "blue" — chosen in the lobby
+	GX, GY      int    // grid position (column, row)
 	Health      int
 	send        chan []byte // outbound messages to this player's WebSocket
 }

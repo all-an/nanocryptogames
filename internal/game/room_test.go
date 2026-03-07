@@ -142,7 +142,8 @@ func TestRoom_ApplyShoot_firstHitIncapacitates(t *testing.T) {
 	r.Join(shooter)
 	r.Join(target)
 
-	// Place them adjacent so the shot is in range.
+	shooter.Team = "red"
+	target.Team  = "blue"
 	shooter.GX, shooter.GY = 5, 5
 	target.GX,  target.GY  = 6, 5
 
@@ -160,11 +161,12 @@ func TestRoom_ApplyShoot_secondHitKills(t *testing.T) {
 	r.Join(shooter)
 	r.Join(target)
 
+	shooter.Team = "red"
+	target.Team  = "blue"
 	shooter.GX, shooter.GY = 5, 5
 	target.GX,  target.GY  = 6, 5
 	target.Health = 50 // already incapacitated
 
-	// Shooter is healthy (100); target is incapacitated (50) — second shot kills.
 	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
 
 	if target.Health != 0 {
@@ -179,6 +181,8 @@ func TestRoom_ApplyShoot_incapacitatedShooterCannotShoot(t *testing.T) {
 	r.Join(shooter)
 	r.Join(target)
 
+	shooter.Team = "red"
+	target.Team  = "blue"
 	shooter.GX, shooter.GY = 5, 5
 	target.GX,  target.GY  = 6, 5
 	shooter.Health = 50 // shooter is incapacitated
@@ -198,7 +202,8 @@ func TestRoom_ApplyShoot_outOfRangeRejected(t *testing.T) {
 	r.Join(shooter)
 	r.Join(target)
 
-	// Place 10 cells apart — well beyond movement radius of 5.
+	shooter.Team = "red"
+	target.Team  = "blue"
 	shooter.GX, shooter.GY = 0, 0
 	target.GX,  target.GY  = 10, 0
 
@@ -207,6 +212,26 @@ func TestRoom_ApplyShoot_outOfRangeRejected(t *testing.T) {
 
 	if target.Health != startHealth {
 		t.Error("out-of-range shot should be rejected")
+	}
+}
+
+func TestRoom_ApplyShoot_teammateCannotBeShot(t *testing.T) {
+	r := NewRoom("test")
+	shooter := NewPlayer("shooter", "test")
+	target  := NewPlayer("target", "test")
+	r.Join(shooter)
+	r.Join(target)
+
+	shooter.Team = "red"
+	target.Team  = "red" // same team
+	shooter.GX, shooter.GY = 5, 5
+	target.GX,  target.GY  = 6, 5
+
+	startHealth := target.Health
+	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
+
+	if target.Health != startHealth {
+		t.Error("shooting a teammate should be rejected")
 	}
 }
 
@@ -221,5 +246,106 @@ func TestRoom_ApplyMove_incapacitatedPlayerCannotMove(t *testing.T) {
 
 	if p.GX != startGX {
 		t.Error("incapacitated player should not be able to move")
+	}
+}
+
+func TestRoom_ApplyHelp_adjacentTeammateRestoresHealth(t *testing.T) {
+	r := NewRoom("test")
+	helper := NewPlayer("helper", "test")
+	target := NewPlayer("target", "test")
+	r.Join(helper)
+	r.Join(target)
+
+	helper.Team = "blue"
+	target.Team = "blue" // same team
+	helper.GX, helper.GY = 5, 5
+	target.GX, target.GY = 6, 5 // one cell apart — adjacent
+	target.Health = 50           // incapacitated
+
+	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
+
+	if target.Health != 100 {
+		t.Errorf("medical help should restore health to 100, got %d", target.Health)
+	}
+}
+
+func TestRoom_ApplyHelp_notAdjacentRejected(t *testing.T) {
+	r := NewRoom("test")
+	helper := NewPlayer("helper", "test")
+	target := NewPlayer("target", "test")
+	r.Join(helper)
+	r.Join(target)
+
+	helper.Team = "blue"
+	target.Team = "blue"
+	helper.GX, helper.GY = 5, 5
+	target.GX, target.GY = 8, 5 // 3 cells away — not adjacent
+	target.Health = 50
+
+	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
+
+	if target.Health != 50 {
+		t.Error("help from non-adjacent position should be rejected")
+	}
+}
+
+func TestRoom_ApplyHelp_healthyTargetRejected(t *testing.T) {
+	r := NewRoom("test")
+	helper := NewPlayer("helper", "test")
+	target := NewPlayer("target", "test")
+	r.Join(helper)
+	r.Join(target)
+
+	helper.Team = "blue"
+	target.Team = "blue"
+	helper.GX, helper.GY = 5, 5
+	target.GX, target.GY = 6, 5
+	// target.Health is 100 — not incapacitated
+
+	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
+
+	if target.Health != 100 {
+		t.Error("help on a healthy player should be rejected (no-op)")
+	}
+}
+
+func TestRoom_ApplyHelp_incapacitatedHelperCannotHelp(t *testing.T) {
+	r := NewRoom("test")
+	helper := NewPlayer("helper", "test")
+	target := NewPlayer("target", "test")
+	r.Join(helper)
+	r.Join(target)
+
+	helper.Team = "blue"
+	target.Team = "blue"
+	helper.GX, helper.GY = 5, 5
+	target.GX, target.GY = 6, 5
+	helper.Health = 50 // helper is also incapacitated
+	target.Health = 50
+
+	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
+
+	if target.Health != 50 {
+		t.Error("incapacitated helper should not be able to give medical help")
+	}
+}
+
+func TestRoom_ApplyHelp_enemyCannotBeHelped(t *testing.T) {
+	r := NewRoom("test")
+	helper := NewPlayer("helper", "test")
+	target := NewPlayer("target", "test")
+	r.Join(helper)
+	r.Join(target)
+
+	helper.Team = "red"
+	target.Team = "blue" // different team — enemy
+	helper.GX, helper.GY = 5, 5
+	target.GX, target.GY = 6, 5
+	target.Health = 50
+
+	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
+
+	if target.Health != 50 {
+		t.Error("enemy player should not be able to receive medical help")
 	}
 }

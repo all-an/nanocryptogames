@@ -146,21 +146,29 @@ Clicking **Shoot** fires an animated bullet (fast dot, ~200 ms) from shooter to 
 
 ---
 
-## ▶ Phase 5 — Medkit System  ← START HERE
+## Phase 5 — Medical Help + Teams ✅ DONE
 
-**Goal:** Players can heal incapacitated teammates. Healing earns a Nano fraction.
+**Goal:** Team-based play. Teammates can revive each other; healing earns a Nano fraction.
 
-- [ ] Medkit items spawn at fixed grid positions each round
-- [ ] `{"action":"pickup"}` — player on a medkit cell picks it up (max 1 held)
-- [ ] `{"action":"heal","targetID":"..."}` — uses held medkit on adjacent incapacitated player
-- [ ] Healed player returns to full health (100)
-- [ ] Server credits healer's `balance_remaining` with `heal_reward` from settings
-- [ ] Record in `nano_transactions` with `direction = 'heal_reward'`
-- [ ] Medkit shown on canvas as green cross `✚` in the grid cell
+### Teams
+- [x] Player picks **Red** or **Blue** team in the lobby before entering a room
+- [x] Team choice passed as `?team=red|blue` query param to the WS URL
+- [x] Team ring drawn on every player circle (red/blue border; white for self)
+- [x] Shoot only allowed against enemies (different team)
+- [x] Medical help only allowed for teammates (same team)
+
+### Medical Help
+- [x] `{"action":"help","targetID":"..."}` — healthy player gives medical help to an incapacitated teammate
+- [x] Helper must be **adjacent** (Chebyshev distance ≤ 1) to the target
+- [x] Healed player returns to full health (100)
+- [x] `"helped"` event broadcast → fading green ✚ animation at healed position
+- [x] Help button (green) shown in modal only when conditions are met
+- [x] Server credits heal_reward to healer (wired in Phase 9 — Shot Economy)
+- [x] 6 new team/help tests (54 total)
 
 ---
 
-## Phase 5b — Team Communication
+## ▶ Phase 5b — Team Communication  ← START HERE
 
 **Goal:** Players can send short messages to teammates. Messages appear as fading popups.
 

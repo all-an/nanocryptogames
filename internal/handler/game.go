@@ -71,6 +71,14 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	p := game.NewPlayer(newID(), roomID)
 
+	// Team is chosen in the lobby and passed as a query param.
+	// Default to "red" if missing or invalid.
+	team := r.URL.Query().Get("team")
+	if team != "red" && team != "blue" {
+		team = "red"
+	}
+	p.Team = team
+
 	// Persist player and session when DB is available.
 	if h.db != nil && len(h.masterSeed) > 0 {
 		h.persistPlayer(r.Context(), p)
@@ -78,10 +86,11 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	room := h.hub.JoinRoom(roomID, p)
 
-	// Tell the client its own ID, colour, and Nano address.
+	// Tell the client its own ID, team, colour, and Nano address.
 	initMsg, _ := json.Marshal(map[string]string{
 		"type":        "init",
 		"id":          p.ID,
+		"team":        p.Team,
 		"color":       p.Color,
 		"nanoAddress": p.NanoAddress,
 	})

@@ -17,9 +17,10 @@ const roomID = canvas.dataset.room;
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let myID      = null;
+let myTeam    = null;  // "red" or "blue" — set on init
 let state     = { players: [] };
 let hoverCell = null;
-let pending   = null;  // { gx, gy, enemyID } — the cell the player clicked
+let pending   = null;  // { gx, gy, targetID, canHelp } — the cell the player clicked
 
 // playerVisuals: { [id]: { px, py, gridX, gridY, waypoints: [{gx,gy}] } }
 // px/py   — current smooth pixel position of the circle centre
@@ -30,6 +31,10 @@ const playerVisuals = {};
 // bullets: [{fromPx, fromPy, toPx, toPy, startTime, duration}]
 // Each bullet animates from shooter to target over `duration` ms.
 const bullets = [];
+
+// healFlashes: [{px, py, startTime, duration}]
+// Each flash shows a green cross at a healed player's position.
+const healFlashes = [];
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
@@ -62,7 +67,8 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
 
   if (msg.type === "init") {
-    myID = msg.id;
+    myID   = msg.id;
+    myTeam = msg.team;
 
   } else if (msg.type === "state") {
     for (const p of msg.players) {
@@ -101,8 +107,15 @@ ws.onmessage = (event) => {
         toPx:      tv.px,
         toPy:      tv.py,
         startTime: performance.now(),
-        duration:  200, // ms
+        duration:  200,
       });
+    }
+
+  } else if (msg.type === "helped") {
+    // Flash a green cross at the healed player's position.
+    const tv = playerVisuals[msg.targetID];
+    if (tv) {
+      healFlashes.push({ px: tv.px, py: tv.py, startTime: performance.now(), duration: 600 });
     }
 
   } else if (msg.type === "died") {
@@ -133,6 +146,11 @@ function sendShoot(targetID) {
   ws.send(JSON.stringify({ action: "shoot", targetID }));
 }
 
+function sendHelp(targetID) {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ action: "help", targetID }));
+}
+
 // ── Player lookup helpers ──────────────────────────────────────────────────────
 
 // myPosition returns the authoritative player state for the local player.
@@ -150,6 +168,11 @@ function isReachable(ox, oy, gx, gy) {
   const dx = gx - ox;
   const dy = gy - oy;
   return Math.sqrt(dx * dx + dy * dy) <= MOVE_RADIUS;
+}
+
+// isAdjacent returns true when two grid positions are within Chebyshev distance 1.
+function isAdjacent(ax, ay, bx, by) {
+  return Math.abs(ax - bx) <= 1 && Math.abs(ay - by) <= 1 && !(ax === bx && ay === by);
 }
 
 // ── Keyboard input ────────────────────────────────────────────────────────────
@@ -202,11 +225,15 @@ canvas.addEventListener("click", (e) => {
 
   if (!isReachable(me.gx, me.gy, gx, gy)) return;
 
-  const occupant = playerAtCell(gx, gy);
-  const isEnemy  = occupant && occupant.id !== myID;
+  const occupant      = playerAtCell(gx, gy);
+  const isOtherPlayer = occupant && occupant.id !== myID;
+  const isEnemy       = isOtherPlayer && occupant.team !== myTeam && occupant.health > 0;
+  const canHelp       = isOtherPlayer && occupant.team === myTeam &&
+                        occupant.health === 50 &&
+                        isAdjacent(me.gx, me.gy, gx, gy);
 
-  pending = { gx, gy, enemyID: isEnemy ? occupant.id : null };
-  showModal(isEnemy);
+  pending = { gx, gy, targetID: isOtherPlayer ? occupant.id : null, canHelp };
+  showModal({ isEnemy, canHelp });
 });
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -215,16 +242,17 @@ const modal      = document.getElementById("move-modal");
 const modalTitle = document.getElementById("modal-title");
 const btnConfirm = document.getElementById("modal-confirm");
 const btnShoot   = document.getElementById("modal-shoot");
+const btnHelp    = document.getElementById("modal-help");
 const btnCancel  = document.getElementById("modal-cancel");
 
-function showModal(hasEnemy) {
-  if (hasEnemy) {
+function showModal({ isEnemy, canHelp }) {
+  if (isEnemy || canHelp) {
     modalTitle.textContent = "What do you want?";
-    btnShoot.classList.remove("hidden");
   } else {
     modalTitle.textContent = "Move here?";
-    btnShoot.classList.add("hidden");
   }
+  btnShoot.classList.toggle("hidden", !isEnemy);
+  btnHelp.classList.toggle("hidden", !canHelp);
   modal.classList.remove("hidden");
   btnConfirm.focus();
 }
@@ -240,7 +268,12 @@ btnConfirm.addEventListener("click", () => {
 });
 
 btnShoot.addEventListener("click", () => {
-  if (pending?.enemyID) sendShoot(pending.enemyID);
+  if (pending?.targetID) sendShoot(pending.targetID);
+  hideModal();
+});
+
+btnHelp.addEventListener("click", () => {
+  if (pending?.targetID) sendHelp(pending.targetID);
   hideModal();
 });
 
@@ -310,6 +343,7 @@ function draw() {
   }
 
   drawBullets();
+  drawHealFlashes();
 
   requestAnimationFrame(draw);
 }
@@ -371,11 +405,11 @@ function drawPlayer(player, px, py) {
   ctx.fillStyle = dead ? "#666" : player.color;
   ctx.fill();
 
-  if (isMe) {
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth   = 2.5;
-    ctx.stroke();
-  }
+  // Team ring: white for self, team colour for others.
+  const teamColor = player.team === "red" ? "#c0392b" : "#2471a3";
+  ctx.strokeStyle = isMe ? "#ffffff" : teamColor;
+  ctx.lineWidth   = isMe ? 2.5 : 2;
+  ctx.stroke();
 
   ctx.fillStyle    = "#ffffff";
   ctx.font         = "bold 15px system-ui";
@@ -398,6 +432,33 @@ function drawHealthBar(cx, cy, health) {
   ctx.fillRect(x, cy, w, h);
   ctx.fillStyle = pct > 0.5 ? "#52C07A" : pct > 0.25 ? "#F5A623" : "#E05252";
   ctx.fillRect(x, cy, w * pct, h);
+}
+
+// drawHealFlashes renders a fading green cross at the position of a recently healed player.
+function drawHealFlashes() {
+  const now = performance.now();
+  let i = 0;
+  while (i < healFlashes.length) {
+    const f     = healFlashes[i];
+    const t     = Math.min(1, (now - f.startTime) / f.duration);
+    const alpha = 1 - t;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = "#52C07A";
+    ctx.font        = "bold 28px system-ui";
+    ctx.textAlign   = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("✚", f.px, f.py - 24 * t); // rises slightly as it fades
+
+    ctx.restore();
+
+    if (t >= 1) {
+      healFlashes.splice(i, 1);
+    } else {
+      i++;
+    }
+  }
 }
 
 // drawBullets renders all active bullet animations, removing finished ones.

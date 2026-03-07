@@ -16,19 +16,26 @@ var spawnPoints = [][2]int{
 	{18, 5}, {12, 15},
 }
 
-// Input is a command sent by a player: "move" to a cell, or "shoot" at a target.
+// Input is a command sent by a player: "move", "shoot", or "help".
 type Input struct {
 	PlayerID string
-	Action   string // "move" (default) or "shoot"
+	Action   string // "move" (default), "shoot", or "help"
 	GX, GY   int    // target grid cell for move
-	TargetID string // target player ID for shoot
+	TargetID string // target player ID for shoot/help
 }
 
-// shotEvent is broadcast to all players in the room when a shot is fired.
+// shotEvent is broadcast to all players when a shot is fired.
 type shotEvent struct {
 	Type      string `json:"type"`
 	ShooterID string `json:"shooterID"`
 	TargetID  string `json:"targetID"`
+}
+
+// helpEvent is broadcast to all players when a player gives medical help.
+type helpEvent struct {
+	Type     string `json:"type"`
+	HelperID string `json:"helperID"`
+	TargetID string `json:"targetID"`
 }
 
 // playerState is the per-player snapshot included in each broadcast.
@@ -38,6 +45,7 @@ type playerState struct {
 	GY     int    `json:"gy"`
 	Health int    `json:"health"`
 	Color  string `json:"color"`
+	Team   string `json:"team"`
 }
 
 // worldState is the full game snapshot sent to every client each tick.
@@ -77,7 +85,7 @@ func (r *Room) Run() {
 			// Heartbeat broadcast keeps clients in sync even without movement.
 			r.broadcastState()
 		case input := <-r.inputCh:
-			// Apply move and immediately push the updated state.
+			// Apply the action and immediately push the updated state.
 			r.applyInput(input)
 			r.broadcastState()
 		case <-r.done:
@@ -118,7 +126,7 @@ func (r *Room) Close() {
 	close(r.done)
 }
 
-// Submit queues a player move for processing. Non-blocking: drops if buffer is full.
+// Submit queues a player action for processing. Non-blocking: drops if buffer is full.
 func (r *Room) Submit(input Input) {
 	select {
 	case r.inputCh <- input:
@@ -138,6 +146,8 @@ func (r *Room) applyInput(input Input) {
 	switch input.Action {
 	case "shoot":
 		r.applyShoot(input)
+	case "help":
+		r.applyHelp(input)
 	default:
 		r.applyMove(input)
 	}
@@ -181,6 +191,12 @@ func (r *Room) applyShoot(input Input) {
 		return // target must exist and be alive
 	}
 
+	// Cannot shoot a teammate.
+	if shooter.Team == target.Team {
+		r.mu.Unlock()
+		return
+	}
+
 	// Validate that the target is within shooting range (same radius as movement).
 	if !isValidMove(shooter.GX, shooter.GY, target.GX, target.GY) {
 		r.mu.Unlock()
@@ -214,6 +230,49 @@ func (r *Room) applyShoot(input Input) {
 	}
 }
 
+// applyHelp handles a medical help action.
+// A healthy player adjacent (Chebyshev distance ≤ 1) to an incapacitated player
+// can give medical help, restoring the target to full health.
+// The heal_reward Nano credit is handled by Phase 9 (shot economy).
+func (r *Room) applyHelp(input Input) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	helper, ok := r.players[input.PlayerID]
+	if !ok || helper.Health < 100 {
+		return // only healthy players can give medical help
+	}
+
+	target, ok := r.players[input.TargetID]
+	if !ok || target.Health != 50 {
+		return // can only help incapacitated players (health == 50)
+	}
+
+	// Can only help a teammate.
+	if helper.Team != target.Team {
+		return
+	}
+
+	// Helper must be standing next to the target (Chebyshev distance ≤ 1).
+	dx := helper.GX - target.GX
+	dy := helper.GY - target.GY
+	if dx < -1 || dx > 1 || dy < -1 || dy > 1 {
+		return
+	}
+
+	target.Health = 100
+
+	// Notify all players so they can show a visual cue.
+	evt, _ := json.Marshal(helpEvent{
+		Type:     "helped",
+		HelperID: input.PlayerID,
+		TargetID: input.TargetID,
+	})
+	for _, p := range r.players {
+		p.Send(evt)
+	}
+}
+
 // broadcastState serialises the current world snapshot and fans it out to all players.
 func (r *Room) broadcastState() {
 	r.mu.RLock()
@@ -227,6 +286,7 @@ func (r *Room) broadcastState() {
 			GY:     p.GY,
 			Health: p.Health,
 			Color:  p.Color,
+			Team:   p.Team,
 		})
 	}
 

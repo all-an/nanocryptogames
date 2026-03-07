@@ -120,20 +120,6 @@ body {
   white-space: nowrap;
 }
 
-.room-join-btn {
-  padding: 5px 14px;
-  border-radius: 5px;
-  background: #4a90d9;
-  color: #fff;
-  text-decoration: none;
-  font-size: 0.85rem;
-  white-space: nowrap;
-  transition: background 0.15s;
-}
-
-.room-join-btn:hover {
-  background: #357abd;
-}
 
 /* ── Game ── */
 
@@ -254,7 +240,64 @@ canvas {
   background: #a93226 !important;
 }
 
+.btn-heal {
+  background: #27ae60 !important;
+  color: #fff !important;
+}
+
+.btn-heal:hover {
+  background: #1e8449 !important;
+}
+
 .modal-sub {
-  color: #666;
+  color: #888;
   font-size: 0.85rem;
 }
+
+/* ── Team picker ── */
+
+.team-buttons {
+  display: flex;
+  gap: 16px;
+}
+
+.btn-team {
+  padding: 14px 36px;
+  border-radius: 8px;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.btn-team:hover {
+  filter: brightness(1.15);
+}
+
+.btn-team-red  { background: #c0392b; color: #fff; }
+.btn-team-blue { background: #2471a3; color: #fff; }
+
+/* Small team buttons in the room list */
+.room-join-group {
+  display: flex;
+  gap: 6px;
+}
+
+.room-join-btn {
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: none;
+  color: #fff;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.15s;
+}
+
+.room-join-btn:hover {
+  filter: brightness(1.15);
+}
+
+.btn-team-red-sm  { background: #c0392b; }
+.btn-team-blue-sm { background: #2471a3; }
