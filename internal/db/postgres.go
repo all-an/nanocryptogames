@@ -128,6 +128,13 @@ func (db *DB) RecordDeposit(ctx context.Context, sessionID, fromAddress, amountR
 	return err
 }
 
+// StoreMasterSeedFingerprint upserts the Blake2b-256 hash of the master seed
+// into the settings table. This lets you verify which seed generated the wallets
+// stored in the DB without ever persisting the seed itself.
+func (db *DB) StoreMasterSeedFingerprint(ctx context.Context, fingerprintHex string) error {
+	return db.SetSetting(ctx, "master_seed_blake2b_fingerprint", fingerprintHex)
+}
+
 // LogSession records a new WebSocket session start in the session_log table.
 // playerID may be empty when running without a DB-persisted player record.
 func (db *DB) LogSession(ctx context.Context, playerID, nanoAddress, roomID, team, remoteAddr string) error {

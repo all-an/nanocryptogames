@@ -16,6 +16,7 @@ import (
 	"github.com/allanabrahao/nanomultiplayer/internal/handler"
 	"github.com/allanabrahao/nanomultiplayer/internal/nano"
 	"github.com/joho/godotenv"
+	"golang.org/x/crypto/blake2b"
 )
 
 func main() {
@@ -51,6 +52,15 @@ func main() {
 
 	// ── Nano master seed ─────────────────────────────────────────────────────
 	masterSeed := loadMasterSeed()
+
+	// Store a fingerprint of the master seed in the DB so we can later verify
+	// which seed generated the wallets — without ever persisting the seed itself.
+	if database != nil {
+		h := blake2b.Sum256(masterSeed)
+		if err := database.StoreMasterSeedFingerprint(ctx, hex.EncodeToString(h[:])); err != nil {
+			log.Printf("warning: could not store seed fingerprint: %v", err)
+		}
+	}
 
 	// ── Nano RPC client ───────────────────────────────────────────────────────
 	primaryURL := os.Getenv("NANO_RPC_PRIMARY_URL")
