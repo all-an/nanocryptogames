@@ -6,16 +6,55 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="game-wrap">
-    <div class="game-header">
-      <span class="room-label">Room: <strong>{{.RoomID}}</strong></span>
-      <a href="/" class="leave">Leave</a>
+  <div class="game-layout">
+
+    <!-- Left sidebar: deposit panel -->
+    <aside class="deposit-panel">
+      <h2 class="deposit-title">Ӿ Deposit</h2>
+
+      <div id="deposit-waiting" class="deposit-waiting">
+        <p>Connecting…</p>
+      </div>
+
+      <div id="deposit-ready" class="hidden">
+        <p class="deposit-label">Send Nano to your session address:</p>
+
+        <div class="deposit-address-wrap">
+          <span id="deposit-address" class="deposit-address"></span>
+          <button id="copy-btn" class="copy-btn" title="Copy address">⧉</button>
+        </div>
+        <p id="copy-confirm" class="copy-confirm hidden">Copied!</p>
+
+        <a id="qr-link" class="qr-link" href="#" target="_blank" rel="noopener">
+          Open in Nano wallet ↗
+        </a>
+
+        <hr class="deposit-divider">
+
+        <div class="deposit-balance-row">
+          <span class="deposit-balance-label">Session balance</span>
+          <span id="deposit-balance" class="deposit-balance">— XNO</span>
+        </div>
+
+        <p class="deposit-note">
+          Funds sent here are yours. Unused balance can be withdrawn after the match.
+        </p>
+      </div>
+    </aside>
+
+    <!-- Main game area -->
+    <div class="game-wrap">
+      <div class="game-header">
+        <span class="room-label">Room: <strong>{{.RoomID}}</strong></span>
+        <a href="/" class="leave">Leave</a>
+      </div>
+
+      <!-- data-room is read by game.js to build the WebSocket URL -->
+      <canvas id="game" data-room="{{.RoomID}}" width="1000" height="680"></canvas>
+
+      <p class="controls-hint">Move: WASD / arrow keys &nbsp;·&nbsp; or click a reachable square &nbsp;·&nbsp; Shoot enemies &nbsp;·&nbsp; Help adjacent teammates</p>
     </div>
 
-    <!-- data-room is read by game.js to build the WebSocket URL -->
-    <canvas id="game" data-room="{{.RoomID}}" width="1000" height="680"></canvas>
-
-    <p class="controls-hint">Move: WASD / arrow keys &nbsp;·&nbsp; or click a reachable square &nbsp;·&nbsp; Shoot enemies &nbsp;·&nbsp; Help adjacent teammates</p>
   </div>
 
   <!-- Action modal — buttons shown depend on what is in the clicked cell -->

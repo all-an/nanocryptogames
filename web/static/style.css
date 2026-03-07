@@ -121,14 +121,138 @@ body {
 }
 
 
-/* ── Game ── */
+/* ── Game layout ── */
+
+.game-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 16px;
+  justify-content: center;
+}
 
 .game-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px;
   gap: 10px;
+}
+
+/* ── Deposit panel ── */
+
+.deposit-panel {
+  width: 220px;
+  flex-shrink: 0;
+  background: #0f0f1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 42px; /* align with canvas top (header height) */
+}
+
+.deposit-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.deposit-waiting {
+  color: #555;
+  font-size: 0.85rem;
+}
+
+.deposit-label {
+  color: #aaa;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.deposit-address-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 5px;
+  padding: 6px 8px;
+}
+
+.deposit-address {
+  font-size: 0.62rem;
+  color: #4a90d9;
+  word-break: break-all;
+  flex: 1;
+  line-height: 1.5;
+  font-family: monospace;
+}
+
+.copy-btn {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.copy-btn:hover {
+  color: #fff;
+}
+
+.copy-confirm {
+  color: #52C07A;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.qr-link {
+  display: block;
+  text-align: center;
+  color: #4a90d9;
+  font-size: 0.78rem;
+  text-decoration: none;
+  padding: 6px 0;
+  border: 1px solid #2a2a4a;
+  border-radius: 5px;
+  transition: background 0.15s;
+}
+
+.qr-link:hover {
+  background: #1a1a2e;
+}
+
+.deposit-divider {
+  border: none;
+  border-top: 1px solid #2a2a4a;
+}
+
+.deposit-balance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.deposit-balance-label {
+  font-size: 0.78rem;
+  color: #888;
+}
+
+.deposit-balance {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #52C07A;
+}
+
+.deposit-note {
+  font-size: 0.72rem;
+  color: #444;
+  line-height: 1.5;
 }
 
 .game-header {

@@ -69,6 +69,7 @@ ws.onmessage = (event) => {
   if (msg.type === "init") {
     myID   = msg.id;
     myTeam = msg.team;
+    if (msg.nanoAddress) showDepositPanel(msg.nanoAddress);
 
   } else if (msg.type === "state") {
     for (const p of msg.players) {
@@ -482,6 +483,28 @@ function drawBullets() {
       i++;
     }
   }
+}
+
+// ── Deposit panel ─────────────────────────────────────────────────────────────
+
+// showDepositPanel populates the sidebar with the player's session Nano address.
+function showDepositPanel(address) {
+  document.getElementById("deposit-waiting").classList.add("hidden");
+  document.getElementById("deposit-ready").classList.remove("hidden");
+
+  document.getElementById("deposit-address").textContent = address;
+
+  // Nano URI opens compatible wallets (Natrium, Nault, etc.).
+  const uri = `nano:${address}`;
+  document.getElementById("qr-link").href = uri;
+
+  document.getElementById("copy-btn").addEventListener("click", () => {
+    navigator.clipboard.writeText(address).then(() => {
+      const confirm = document.getElementById("copy-confirm");
+      confirm.classList.remove("hidden");
+      setTimeout(() => confirm.classList.add("hidden"), 1500);
+    });
+  });
 }
 
 draw();
