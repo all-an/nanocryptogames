@@ -128,6 +128,21 @@ func (db *DB) RecordDeposit(ctx context.Context, sessionID, fromAddress, amountR
 	return err
 }
 
+// LogSession records a new WebSocket session start in the session_log table.
+// playerID may be empty when running without a DB-persisted player record.
+func (db *DB) LogSession(ctx context.Context, playerID, nanoAddress, roomID, team, remoteAddr string) error {
+	var pid *string
+	if playerID != "" {
+		pid = &playerID
+	}
+	_, err := db.pool.Exec(ctx,
+		`INSERT INTO session_log (player_id, nano_address, room_id, team, remote_addr)
+		 VALUES ($1, NULLIF($2,''), $3, NULLIF($4,''), NULLIF($5,''))`,
+		pid, nanoAddress, roomID, team, remoteAddr,
+	)
+	return err
+}
+
 // GetDepositSender returns the nano_ address of the most recent deposit sender
 // for the given session. Returns an error if no deposit with a known sender exists.
 func (db *DB) GetDepositSender(ctx context.Context, sessionID string) (string, error) {

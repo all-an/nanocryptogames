@@ -12,7 +12,10 @@
     <aside class="deposit-panel">
       <button id="donate-trigger" class="donate-trigger">
         <span class="donate-trigger-icon">Ӿ</span>
-        Consider a donation — help the dev
+        <span class="donate-trigger-text">
+          <span class="donate-trigger-title">Support the developer</span>
+          <span class="donate-trigger-sub">Send any portion of your balance as a donation — on-chain, instant.</span>
+        </span>
       </button>
 
       <h2 class="deposit-title">Ӿ Deposit</h2>
@@ -99,9 +102,14 @@
 
   <!-- Donation modal -->
   <div id="donate-modal" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="modal-box donate-modal-box">
-      <p class="modal-title">Support the developer</p>
-      <p class="modal-sub">Choose how much XNO to donate from your session balance.</p>
+    <div class="donate-modal-box">
+      <div class="donate-modal-glow"></div>
+
+      <div class="donate-modal-header">
+        <span class="donate-modal-icon">Ӿ</span>
+        <p class="donate-modal-title">Support the developer</p>
+        <p class="donate-modal-sub">Choose how much of your session balance to donate.<br>The transfer goes on-chain directly to the dev — no middleman.</p>
+      </div>
 
       <div id="donate-balance-info" class="donate-balance-info"></div>
 
@@ -109,16 +117,16 @@
         <button class="donate-preset-btn" data-pct="25">25%</button>
         <button class="donate-preset-btn" data-pct="50">50%</button>
         <button class="donate-preset-btn" data-pct="75">75%</button>
-        <button class="donate-preset-btn" data-pct="100">100%</button>
+        <button class="donate-preset-btn" data-pct="100">All ✦</button>
       </div>
 
       <p id="donate-selected-amt" class="donate-selected-amt"></p>
 
-      <div class="modal-actions">
-        <button id="donate-confirm" class="btn-donate-confirm" disabled>Donate</button>
-        <button id="donate-cancel" class="btn-secondary">Cancel</button>
+      <div class="donate-modal-actions">
+        <button id="donate-confirm" class="btn-donate-confirm" disabled>Send Donation</button>
+        <button id="donate-cancel" class="donate-cancel-btn">Cancel</button>
       </div>
-      <p id="donate-status" class="withdraw-status hidden"></p>
+      <p id="donate-status" class="donate-status-msg hidden"></p>
     </div>
   </div>
 

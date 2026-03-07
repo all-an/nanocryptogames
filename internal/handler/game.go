@@ -248,6 +248,13 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.deriveAddressOnly(p)
 	}
 
+	// Log the session start regardless of DB state (no-op when db is nil).
+	if h.db != nil {
+		if err := h.db.LogSession(r.Context(), p.DBID, p.NanoAddress, roomID, p.Team, r.RemoteAddr); err != nil {
+			log.Printf("session_log: %v", err)
+		}
+	}
+
 	room := h.hub.JoinRoom(roomID, p)
 
 	// Tell the client its own ID, team, colour, and Nano address.

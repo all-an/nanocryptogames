@@ -553,6 +553,7 @@ function openDonateModal() {
   confirm.disabled = true;
   selectedAmt.textContent = "";
   status.classList.add("hidden");
+  document.querySelectorAll(".donate-preset-btn").forEach(b => b.classList.remove("selected"));
 
   if (currentBalanceRaw <= BigInt(0)) {
     info.textContent = "Your session balance is empty. Deposit Nano first.";
@@ -578,15 +579,17 @@ function selectDonatePreset(pct) {
   const rem = selectedDonateRaw % BigInt("1000000000000000000000000000000");
   const frac = rem / divisor;
   const xno = `${whole}.${frac.toString().padStart(6, "0")}`;
-  document.getElementById("donate-selected-amt").textContent = `Donate: ${xno} XNO`;
+  document.getElementById("donate-selected-amt").textContent = `${xno} XNO`;
   document.getElementById("donate-confirm").disabled = selectedDonateRaw <= BigInt(0);
+  document.querySelectorAll(".donate-preset-btn").forEach(b =>
+    b.classList.toggle("selected", Number(b.dataset.pct) === pct));
 }
 
 function sendDonate() {
   if (ws.readyState !== WebSocket.OPEN || selectedDonateRaw <= BigInt(0)) return;
   const confirm = document.getElementById("donate-confirm");
   confirm.disabled = true;
-  confirm.textContent = "Sending…";
+  confirm.textContent = "Sending donation…";
   ws.send(JSON.stringify({ action: "donate", amountRaw: selectedDonateRaw.toString() }));
 }
 
@@ -594,9 +597,9 @@ function showDonateResult(ok, text) {
   const confirm = document.getElementById("donate-confirm");
   const status = document.getElementById("donate-status");
   confirm.disabled = false;
-  confirm.textContent = "Donate";
+  confirm.textContent = "Send Donation";
   status.textContent = text;
-  status.className = ok ? "withdraw-status withdraw-status--ok" : "withdraw-status withdraw-status--err";
+  status.className = `donate-status-msg ${ok ? "ok" : "err"}`;
   status.classList.remove("hidden");
   if (ok) setTimeout(closeDonateModal, 3000);
 }
