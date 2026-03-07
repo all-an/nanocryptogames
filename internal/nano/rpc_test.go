@@ -121,6 +121,26 @@ func TestReceivable_withBlocks(t *testing.T) {
 	}
 }
 
+func TestBlockInfo_success(t *testing.T) {
+	srv := mockNode(t, map[string]string{
+		"amount":        "5000000",
+		"block_account": "nano_3sender111",
+	})
+	defer srv.Close()
+
+	client := NewClient(Config{PrimaryURL: srv.URL})
+	details, err := client.BlockInfo(context.Background(), "SOMEHASH")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if details.Amount != "5000000" {
+		t.Errorf("expected amount 5000000, got %s", details.Amount)
+	}
+	if details.Account != "nano_3sender111" {
+		t.Errorf("expected account nano_3sender111, got %s", details.Account)
+	}
+}
+
 func TestGenerateWork_success(t *testing.T) {
 	srv := mockNode(t, map[string]string{"work": "abc123def456"})
 	defer srv.Close()

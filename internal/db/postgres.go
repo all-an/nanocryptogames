@@ -117,6 +117,17 @@ func (db *DB) RecordTransaction(ctx context.Context, sessionID, direction, amoun
 	return err
 }
 
+// RecordDeposit records an incoming Nano deposit with the sender's address.
+// This audit trail allows refunds if a player needs to be reimbursed.
+func (db *DB) RecordDeposit(ctx context.Context, sessionID, fromAddress, amountRaw, blockHash string) error {
+	_, err := db.pool.Exec(ctx,
+		`INSERT INTO nano_transactions (session_id, direction, amount, block_hash, from_address)
+		 VALUES ($1, 'deposit', $2, NULLIF($3, ''), NULLIF($4, ''))`,
+		sessionID, amountRaw, blockHash, fromAddress,
+	)
+	return err
+}
+
 // Setting retrieves a single value from the settings table.
 func (db *DB) Setting(ctx context.Context, key string) (string, error) {
 	var value string

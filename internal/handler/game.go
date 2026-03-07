@@ -60,6 +60,83 @@ func NewWSHandler(hub *game.Hub, database *db.DB, masterSeed []byte, rpc *nano.C
 	return &WSHandler{hub: hub, db: database, masterSeed: masterSeed, rpcClient: rpc}
 }
 
+// pollDeposits checks for incoming Nano to the player's session address every 30 seconds.
+// When a deposit is detected it is received on-chain and recorded in the DB with the
+// sender's address, so the owner can issue refunds if anything goes wrong.
+// The loop exits when ctx is cancelled (i.e. the player's WebSocket closes).
+func (h *WSHandler) pollDeposits(ctx context.Context, p *game.Player) {
+	if h.db == nil || h.rpcClient == nil || p.NanoAddress == "" {
+		return // nothing to poll without DB, RPC, or a derived address
+	}
+
+	// Check immediately on connect, then every 30 seconds.
+	h.checkDeposits(ctx, p)
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.checkDeposits(ctx, p)
+		}
+	}
+}
+
+// checkDeposits looks for receivable blocks on the player's address, receives them
+// on-chain, and records each one in the DB with the sender's nano_ address.
+func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
+	hashes, err := h.rpcClient.Receivable(ctx, p.NanoAddress)
+	if err != nil || len(hashes) == 0 {
+		return
+	}
+
+	// Collect sender details before receiving (block_info only works on unconfirmed blocks).
+	type pending struct {
+		hash    string
+		details *nano.BlockDetails
+	}
+	blocks := make([]pending, 0, len(hashes))
+	for _, hash := range hashes {
+		details, err := h.rpcClient.BlockInfo(ctx, hash)
+		if err != nil {
+			log.Printf("deposit: block_info %s: %v", hash[:8], err)
+			continue
+		}
+		blocks = append(blocks, pending{hash: hash, details: details})
+	}
+
+	if len(blocks) == 0 {
+		return
+	}
+
+	// Receive all pending blocks on-chain in one pass.
+	wallet, err := nano.DeriveWallet(h.masterSeed, p.SeedIndex)
+	if err != nil {
+		log.Printf("deposit: derive wallet: %v", err)
+		return
+	}
+	if err := nano.ReceivePending(ctx, h.rpcClient, wallet); err != nil {
+		log.Printf("deposit: receive pending for %s: %v", p.NanoAddress, err)
+		return
+	}
+
+	// Record each deposit in the DB with its sender address.
+	for _, b := range blocks {
+		if p.SessionID == "" {
+			continue // DB not connected, skip recording
+		}
+		if err := h.db.RecordDeposit(ctx, p.SessionID, b.details.Account, b.details.Amount, b.hash); err != nil {
+			log.Printf("deposit: record %s: %v", b.hash[:8], err)
+			continue
+		}
+		log.Printf("deposit: player %s received %s raw from %s (block %s)",
+			p.NanoAddress, b.details.Amount, b.details.Account, b.hash[:8])
+	}
+}
+
 // FireDonation is the first-shot callback registered with the Hub.
 // It is called in a goroutine by the room on each player's very first shot.
 // DONATION_ADDRESS env var must be set to a valid nano_ address for donations to fire.
@@ -134,6 +211,10 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"nanoAddress": p.NanoAddress,
 	})
 	p.Send(initMsg)
+
+	// Poll for incoming Nano deposits in the background.
+	// The goroutine exits automatically when the WebSocket closes (ctx cancelled).
+	go h.pollDeposits(r.Context(), p)
 
 	go writePump(conn, p)
 	readPump(conn, p, room)

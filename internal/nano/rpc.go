@@ -120,23 +120,30 @@ func (c *Client) Receivable(ctx context.Context, address string) ([]string, erro
 	return hashes, nil
 }
 
-// BlockInfo returns amount and source info for a given block hash.
-// Used to determine the value of a pending receive block.
-func (c *Client) BlockInfo(ctx context.Context, blockHash string) (amount string, err error) {
+// BlockDetails holds the amount and sender account for a Nano block.
+type BlockDetails struct {
+	Amount  string // transaction amount in raw units
+	Account string // nano_ address that created (sent) this block
+}
+
+// BlockInfo returns the amount and sender account for a given block hash.
+// Used to determine the value and origin of a pending receive block.
+func (c *Client) BlockInfo(ctx context.Context, blockHash string) (*BlockDetails, error) {
 	var r struct {
-		Amount string `json:"amount"`
-		Error  string `json:"error"`
+		Amount  string `json:"amount"`
+		Account string `json:"block_account"`
+		Error   string `json:"error"`
 	}
 	if err := c.call(ctx, map[string]string{
 		"action": "block_info",
 		"hash":   blockHash,
 	}, &r); err != nil {
-		return "", err
+		return nil, err
 	}
 	if r.Error != "" {
-		return "", fmt.Errorf("rpc block_info: %s", r.Error)
+		return nil, fmt.Errorf("rpc block_info: %s", r.Error)
 	}
-	return r.Amount, nil
+	return &BlockDetails{Amount: r.Amount, Account: r.Account}, nil
 }
 
 // GenerateWork requests proof-of-work from the node for the given hash or public key hex.

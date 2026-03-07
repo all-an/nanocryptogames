@@ -139,13 +139,13 @@ func receiveBlock(ctx context.Context, rpc *Client, wallet *Wallet, info *Accoun
 		representative = info.Representative
 	}
 
-	amountRaw, err := rpc.BlockInfo(ctx, pendingHash)
+	details, err := rpc.BlockInfo(ctx, pendingHash)
 	if err != nil {
 		return fmt.Errorf("block info: %w", err)
 	}
-	amountInt, ok := new(big.Int).SetString(amountRaw, 10)
+	amountInt, ok := new(big.Int).SetString(details.Amount, 10)
 	if !ok {
-		return fmt.Errorf("invalid block amount: %s", amountRaw)
+		return fmt.Errorf("invalid block amount: %s", details.Amount)
 	}
 	newBalance := new(big.Int).Add(currentBalance, amountInt)
 
