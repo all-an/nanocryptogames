@@ -18,6 +18,7 @@ const roomID = canvas.dataset.room;
 
 let myID      = null;
 let myTeam    = null;  // "red" or "blue" — set on init
+let currentBalanceRaw = BigInt(0); // real on-chain balance in raw units (updated via WS)
 let state     = { players: [] };
 let hoverCell = null;
 let pending   = null;  // { gx, gy, targetID, canHelp } — the cell the player clicked
@@ -122,6 +123,7 @@ ws.onmessage = (event) => {
 
   } else if (msg.type === "balance") {
     updateBalance(msg.xno);
+    if (msg.raw) currentBalanceRaw = BigInt(msg.raw);
 
   } else if (msg.type === "roundover") {
     showRoundOver(msg.killerID, msg.prize);
@@ -132,6 +134,19 @@ ws.onmessage = (event) => {
 
   } else if (msg.type === "died") {
     document.getElementById("death-overlay").classList.remove("hidden");
+
+  } else if (msg.type === "withdraw_ok") {
+    showWithdrawResult(true,
+      `Sent ${msg.xno} XNO to ${msg.toAddress.slice(0, 16)}…`);
+
+  } else if (msg.type === "withdraw_err") {
+    showWithdrawResult(false, msg.message);
+
+  } else if (msg.type === "donate_ok") {
+    showDonateResult(true, `Thank you! Donated ${msg.xno} XNO`);
+
+  } else if (msg.type === "donate_err") {
+    showDonateResult(false, msg.message);
   }
 };
 
@@ -524,6 +539,96 @@ function hideRoundOver() {
   document.getElementById("round-overlay").classList.add("hidden");
 }
 
+// ── Donation modal ────────────────────────────────────────────────────────────
+
+let selectedDonateRaw = BigInt(0);
+
+function openDonateModal() {
+  const info = document.getElementById("donate-balance-info");
+  const confirm = document.getElementById("donate-confirm");
+  const selectedAmt = document.getElementById("donate-selected-amt");
+  const status = document.getElementById("donate-status");
+
+  selectedDonateRaw = BigInt(0);
+  confirm.disabled = true;
+  selectedAmt.textContent = "";
+  status.classList.add("hidden");
+
+  if (currentBalanceRaw <= BigInt(0)) {
+    info.textContent = "Your session balance is empty. Deposit Nano first.";
+    document.querySelectorAll(".donate-preset-btn").forEach(b => b.disabled = true);
+  } else {
+    const balXNO = document.getElementById("deposit-balance").textContent;
+    info.textContent = `Session balance: ${balXNO}`;
+    document.querySelectorAll(".donate-preset-btn").forEach(b => b.disabled = false);
+  }
+
+  document.getElementById("donate-modal").classList.remove("hidden");
+}
+
+function closeDonateModal() {
+  document.getElementById("donate-modal").classList.add("hidden");
+}
+
+function selectDonatePreset(pct) {
+  selectedDonateRaw = (currentBalanceRaw * BigInt(pct)) / BigInt(100);
+  // Format for display: raw / 10^24 gives us 6 decimal places (out of 10^30 raw = 1 XNO)
+  const divisor = BigInt("1000000000000000000000000"); // 10^24
+  const whole = selectedDonateRaw / BigInt("1000000000000000000000000000000"); // 10^30
+  const rem = selectedDonateRaw % BigInt("1000000000000000000000000000000");
+  const frac = rem / divisor;
+  const xno = `${whole}.${frac.toString().padStart(6, "0")}`;
+  document.getElementById("donate-selected-amt").textContent = `Donate: ${xno} XNO`;
+  document.getElementById("donate-confirm").disabled = selectedDonateRaw <= BigInt(0);
+}
+
+function sendDonate() {
+  if (ws.readyState !== WebSocket.OPEN || selectedDonateRaw <= BigInt(0)) return;
+  const confirm = document.getElementById("donate-confirm");
+  confirm.disabled = true;
+  confirm.textContent = "Sending…";
+  ws.send(JSON.stringify({ action: "donate", amountRaw: selectedDonateRaw.toString() }));
+}
+
+function showDonateResult(ok, text) {
+  const confirm = document.getElementById("donate-confirm");
+  const status = document.getElementById("donate-status");
+  confirm.disabled = false;
+  confirm.textContent = "Donate";
+  status.textContent = text;
+  status.className = ok ? "withdraw-status withdraw-status--ok" : "withdraw-status withdraw-status--err";
+  status.classList.remove("hidden");
+  if (ok) setTimeout(closeDonateModal, 3000);
+}
+
+document.getElementById("donate-trigger").addEventListener("click", openDonateModal);
+document.getElementById("donate-cancel").addEventListener("click", closeDonateModal);
+document.getElementById("donate-confirm").addEventListener("click", sendDonate);
+document.querySelectorAll(".donate-preset-btn").forEach(btn => {
+  btn.addEventListener("click", () => selectDonatePreset(Number(btn.dataset.pct)));
+});
+
+// ── Withdraw ──────────────────────────────────────────────────────────────────
+
+function sendWithdraw() {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  const btn = document.getElementById("withdraw-btn");
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+  ws.send(JSON.stringify({ action: "withdraw" }));
+}
+
+function showWithdrawResult(ok, text) {
+  const btn    = document.getElementById("withdraw-btn");
+  const status = document.getElementById("withdraw-status");
+  btn.disabled    = false;
+  btn.textContent = "Withdraw";
+  status.textContent = text;
+  status.className   = ok ? "withdraw-status withdraw-status--ok" : "withdraw-status withdraw-status--err";
+  status.classList.remove("hidden");
+  setTimeout(() => status.classList.add("hidden"), 6000);
+}
+
 // showDepositPanel populates the sidebar with the player's session Nano address.
 function showDepositPanel(address) {
   document.getElementById("deposit-waiting").classList.add("hidden");
@@ -542,6 +647,8 @@ function showDepositPanel(address) {
       setTimeout(() => confirm.classList.add("hidden"), 1500);
     });
   });
+
+  document.getElementById("withdraw-btn").addEventListener("click", sendWithdraw);
 }
 
 draw();

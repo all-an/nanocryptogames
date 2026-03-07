@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
 	"time"
@@ -123,6 +124,19 @@ func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 		return
 	}
 
+	// Push the real on-chain balance to the player so their sidebar stays current.
+	if info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address); err == nil {
+		bal, ok := new(big.Int).SetString(info.Balance, 10)
+		if ok {
+			b, _ := json.Marshal(map[string]string{
+				"type": "balance",
+				"xno":  game.FormatXNO(bal),
+				"raw":  info.Balance,
+			})
+			p.Send(b)
+		}
+	}
+
 	// Record each deposit in the DB with its sender address.
 	for _, b := range blocks {
 		if p.SessionID == "" {
@@ -137,37 +151,71 @@ func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 	}
 }
 
-// FireDonation is the first-shot callback registered with the Hub.
-// It is called in a goroutine by the room on each player's very first shot.
-// DONATION_ADDRESS env var must be set to a valid nano_ address for donations to fire.
-func (h *WSHandler) FireDonation(p *game.Player) {
+// processDonate handles a manual donation request from the player.
+// It sends amountRaw from the player's session wallet to DONATION_ADDRESS.
+func (h *WSHandler) processDonate(ctx context.Context, p *game.Player, amountRaw string) {
+	errMsg := func(text string) {
+		b, _ := json.Marshal(map[string]string{"type": "donate_err", "message": text})
+		p.Send(b)
+	}
+
 	donationAddr := os.Getenv("DONATION_ADDRESS")
 	if donationAddr == "" {
-		log.Println("donation: DONATION_ADDRESS not set — skipping first-shot donation")
+		errMsg("donation address is not configured")
+		return
+	}
+	if h.rpcClient == nil {
+		errMsg("RPC node not configured")
+		return
+	}
+
+	amount, ok := new(big.Int).SetString(amountRaw, 10)
+	if !ok || amount.Sign() <= 0 {
+		errMsg("invalid amount")
 		return
 	}
 
 	wallet, err := nano.DeriveWallet(h.masterSeed, p.SeedIndex)
 	if err != nil {
-		log.Printf("donation: derive wallet index=%d: %v", p.SeedIndex, err)
+		log.Printf("donate: derive wallet: %v", err)
+		errMsg("wallet error")
 		return
 	}
 
-	// Default donation: 0.001 XNO = 10^27 raw. Override with DONATION_AMOUNT_RAW.
-	amountRaw := os.Getenv("DONATION_AMOUNT_RAW")
-	if amountRaw == "" {
-		amountRaw = "1000000000000000000000000000"
+	// Validate against real on-chain balance.
+	info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address)
+	if err != nil {
+		errMsg("your session account has no balance")
+		return
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	onChain, ok := new(big.Int).SetString(info.Balance, 10)
+	if !ok || onChain.Cmp(amount) < 0 {
+		errMsg("amount exceeds your session balance")
+		return
+	}
 
 	hash, err := nano.Send(ctx, h.rpcClient, wallet, donationAddr, amountRaw)
 	if err != nil {
-		log.Printf("donation: send failed from player %s: %v", p.NanoAddress, err)
+		log.Printf("donate: send from %s: %v", p.NanoAddress, err)
+		errMsg("send failed: " + err.Error())
 		return
 	}
-	log.Printf("donation: sent from %s → %s, block %s", p.NanoAddress, donationAddr, hash)
+
+	xno := game.FormatXNO(amount)
+	log.Printf("donate: %s → %s (%s XNO), block %s", p.NanoAddress, donationAddr, xno, hash[:8])
+
+	if h.db != nil && p.SessionID != "" {
+		if err := h.db.RecordTransaction(ctx, p.SessionID, "donation", amountRaw, hash); err != nil {
+			log.Printf("donate: record transaction: %v", err)
+		}
+	}
+
+	b, _ := json.Marshal(map[string]string{
+		"type":      "donate_ok",
+		"xno":       xno,
+		"blockHash": hash,
+	})
+	p.Send(b)
 }
 
 func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +265,7 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go h.pollDeposits(r.Context(), p)
 
 	go writePump(conn, p)
-	readPump(conn, p, room)
+	h.readPump(conn, p, room)
 
 	h.hub.LeaveRoom(p)
 	p.Close()
@@ -272,8 +320,9 @@ func (h *WSHandler) deriveAddressOnly(p *game.Player) {
 }
 
 // readPump reads client input messages and forwards them to the room's input channel.
+// Intercepts "withdraw" actions and handles them directly without entering the game loop.
 // Blocks until the WebSocket connection is closed.
-func readPump(conn *websocket.Conn, p *game.Player, room *game.Room) {
+func (h *WSHandler) readPump(conn *websocket.Conn, p *game.Player, room *game.Room) {
 	defer conn.Close()
 
 	for {
@@ -283,12 +332,27 @@ func readPump(conn *websocket.Conn, p *game.Player, room *game.Room) {
 		}
 
 		var raw struct {
-			Action   string `json:"action"`
-			GX       int    `json:"gx"`
-			GY       int    `json:"gy"`
-			TargetID string `json:"targetID"`
+			Action    string `json:"action"`
+			GX        int    `json:"gx"`
+			GY        int    `json:"gy"`
+			TargetID  string `json:"targetID"`
+			AmountRaw string `json:"amountRaw"`
 		}
 		if json.Unmarshal(msg, &raw) != nil {
+			continue
+		}
+
+		if raw.Action == "withdraw" {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			h.processWithdraw(ctx, p)
+			cancel()
+			continue
+		}
+
+		if raw.Action == "donate" {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			h.processDonate(ctx, p, raw.AmountRaw)
+			cancel()
 			continue
 		}
 
@@ -300,6 +364,72 @@ func readPump(conn *websocket.Conn, p *game.Player, room *game.Room) {
 			TargetID: raw.TargetID,
 		})
 	}
+}
+
+// processWithdraw sends the player's full on-chain session balance back to the
+// address that originally deposited Nano into the session wallet.
+func (h *WSHandler) processWithdraw(ctx context.Context, p *game.Player) {
+	errMsg := func(text string) {
+		b, _ := json.Marshal(map[string]string{"type": "withdraw_err", "message": text})
+		p.Send(b)
+	}
+
+	if h.db == nil || h.rpcClient == nil {
+		errMsg("withdrawal requires a connected database and RPC node")
+		return
+	}
+	if p.SessionID == "" {
+		errMsg("no active session — reconnect with the database configured")
+		return
+	}
+
+	fromAddr, err := h.db.GetDepositSender(ctx, p.SessionID)
+	if err != nil {
+		errMsg("no deposit on record — send Nano to your session address first")
+		return
+	}
+
+	wallet, err := nano.DeriveWallet(h.masterSeed, p.SeedIndex)
+	if err != nil {
+		log.Printf("withdraw: derive wallet: %v", err)
+		errMsg("wallet derivation error")
+		return
+	}
+
+	info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address)
+	if err != nil {
+		errMsg("your session account has no balance to withdraw")
+		return
+	}
+
+	balance, ok := new(big.Int).SetString(info.Balance, 10)
+	if !ok || balance.Sign() <= 0 {
+		errMsg("balance is zero")
+		return
+	}
+
+	hash, err := nano.Send(ctx, h.rpcClient, wallet, fromAddr, info.Balance)
+	if err != nil {
+		log.Printf("withdraw: send from %s: %v", p.NanoAddress, err)
+		errMsg("send failed: " + err.Error())
+		return
+	}
+
+	xno := game.FormatXNO(balance)
+	log.Printf("withdraw: %s → %s (%s XNO), block %s", p.NanoAddress, fromAddr, xno, hash[:8])
+
+	// Record the withdrawal in the audit log.
+	if err := h.db.RecordTransaction(ctx, p.SessionID, "withdrawal", info.Balance, hash); err != nil {
+		log.Printf("withdraw: record transaction: %v", err)
+	}
+
+	b, _ := json.Marshal(map[string]string{
+		"type":      "withdraw_ok",
+		"toAddress": fromAddr,
+		"xno":       xno,
+		"blockHash": hash,
+	})
+	p.Send(b)
 }
 
 // writePump reads from the player's message channel and writes to the WebSocket.

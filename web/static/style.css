@@ -464,3 +464,230 @@ canvas {
 
 .btn-team-red-sm  { background: #c0392b; }
 .btn-team-blue-sm { background: #2471a3; }
+
+/* ── Donation trigger button ── */
+
+@keyframes donate-shine {
+  0%   { box-shadow: 0 0 6px 1px rgba(245,166,35,0.4); }
+  50%  { box-shadow: 0 0 18px 4px rgba(245,166,35,0.75); }
+  100% { box-shadow: 0 0 6px 1px rgba(245,166,35,0.4); }
+}
+
+.donate-trigger {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(245,166,35,0.5);
+  background: linear-gradient(135deg, #1a1200 0%, #2d1e00 50%, #1a1200 100%);
+  color: #F5A623;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  animation: donate-shine 2.5s ease-in-out infinite;
+  transition: filter 0.15s;
+}
+
+.donate-trigger:hover {
+  filter: brightness(1.2);
+}
+
+.donate-trigger-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+/* ── Donate modal extras ── */
+
+.donate-modal-box {
+  min-width: 300px;
+  max-width: 380px;
+}
+
+.donate-balance-info {
+  font-size: 0.82rem;
+  color: #aaa;
+  text-align: center;
+}
+
+.donate-presets {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.donate-preset-btn {
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: 1px solid #2a2a4a;
+  background: #1a1a2e;
+  color: #F5A623;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.donate-preset-btn:hover:not(:disabled) {
+  background: #2a1f00;
+  border-color: #F5A623;
+}
+
+.donate-preset-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.donate-selected-amt {
+  font-size: 0.85rem;
+  color: #F5A623;
+  font-weight: 600;
+  text-align: center;
+  min-height: 1.2em;
+}
+
+.btn-donate-confirm {
+  background: #F5A623 !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+}
+
+.btn-donate-confirm:hover:not(:disabled) {
+  background: #d48e10 !important;
+}
+
+.btn-donate-confirm:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+
+/* ── Withdraw button ── */
+
+.withdraw-btn {
+  width: 100%;
+  padding: 9px 0;
+  border-radius: 6px;
+  border: none;
+  background: #27ae60;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.withdraw-btn:hover:not(:disabled) {
+  background: #1e8449;
+}
+
+.withdraw-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.withdraw-status {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.withdraw-status--ok  { color: #52C07A; }
+.withdraw-status--err { color: #e05252; }
+
+/* ── Welcome page ── */
+
+.welcome {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px 40px;
+  gap: 48px;
+}
+
+.welcome-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.welcome-title {
+  font-size: 3rem;
+  letter-spacing: 0.02em;
+}
+
+.welcome-tagline {
+  color: #888;
+  font-size: 1.05rem;
+}
+
+.welcome-play-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 14px 40px;
+  background: #4a90d9;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.welcome-play-btn:hover {
+  background: #357abd;
+}
+
+.welcome-play-btn--sm {
+  padding: 10px 28px;
+  font-size: 0.95rem;
+}
+
+.welcome-cards {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 960px;
+  width: 100%;
+}
+
+.welcome-card {
+  background: #0f0f1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 10px;
+  padding: 28px 24px;
+  flex: 1;
+  min-width: 240px;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.welcome-card-icon {
+  font-size: 2rem;
+}
+
+.welcome-card h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.welcome-card p {
+  font-size: 0.85rem;
+  color: #888;
+  line-height: 1.6;
+}
+
+.welcome-footer {
+  display: flex;
+  justify-content: center;
+}

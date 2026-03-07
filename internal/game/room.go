@@ -54,6 +54,7 @@ type roundOverEvent struct {
 type balanceEvent struct {
 	Type string `json:"type"`
 	XNO  string `json:"xno"` // human-readable balance, e.g. "0.000300"
+	Raw  string `json:"raw"` // raw Nano units as decimal string, for client-side math
 }
 
 // playerState is the per-player snapshot included in each broadcast.
@@ -79,9 +80,8 @@ type Room struct {
 	inputCh     chan Input
 	done        chan struct{}
 	mu          sync.RWMutex
-	playerCount int          // total players ever joined; used for colour and spawn assignment
-	shotCostRaw *big.Int     // cost per shot in raw Nano units
-	onFirstShot func(*Player) // called in a goroutine on each player's first-ever shot
+	playerCount int      // total players ever joined; used for colour and spawn assignment
+	shotCostRaw *big.Int // cost per shot in raw Nano units
 }
 
 // NewRoom creates a Room ready to accept players.
@@ -245,15 +245,6 @@ func (r *Room) applyShoot(input Input) {
 		return
 	}
 
-	// Fire the first-shot donation callback exactly once per player session.
-	// This runs in a goroutine so the game loop is never blocked.
-	if !shooter.FirstShotFired {
-		shooter.FirstShotFired = true
-		if r.onFirstShot != nil {
-			go r.onFirstShot(shooter)
-		}
-	}
-
 	// Deduct shot cost from shooter's balance.
 	shooter.BalanceRaw.Sub(shooter.BalanceRaw, r.shotCostRaw)
 	shooterBalanceXNO := shooter.BalanceXNO()
@@ -293,7 +284,7 @@ func (r *Room) applyShoot(input Input) {
 	r.mu.Unlock()
 
 	// Send updated balance privately to the shooter.
-	balMsg, _ := json.Marshal(balanceEvent{Type: "balance", XNO: shooterBalanceXNO})
+	balMsg, _ := json.Marshal(balanceEvent{Type: "balance", XNO: shooterBalanceXNO, Raw: shooter.BalanceRaw.String()})
 	shooter.Send(balMsg)
 
 	// After a kill, restart the round after a 3-second grace period.

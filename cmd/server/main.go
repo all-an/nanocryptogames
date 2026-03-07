@@ -60,22 +60,12 @@ func main() {
 		FallbackURL: fallbackURL,
 	})
 
-	if addr := os.Getenv("DONATION_ADDRESS"); addr != "" {
-		log.Printf("donation address: %s", addr)
-	} else {
-		log.Println("DONATION_ADDRESS not set — first-shot donations disabled")
-	}
-
 	// ── Templates ────────────────────────────────────────────────────────────
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
 
 	// ── Hub + WS handler ─────────────────────────────────────────────────────
 	hub := game.NewHub()
 	wsHandler := handler.NewWSHandler(hub, database, masterSeed, rpcClient)
-
-	// Register the first-shot donation callback on the hub.
-	// It fires asynchronously the first time each player shoots, once per session.
-	hub.SetOnFirstShot(wsHandler.FireDonation)
 
 	// ── Routes ───────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
@@ -84,6 +74,7 @@ func main() {
 		http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
 	mux.Handle("GET /", handler.NewHomeHandler(tmpl))
+	mux.Handle("GET /lobby", handler.NewLobbyHandler(tmpl))
 
 	gamePage := handler.NewGamePageHandler(tmpl)
 	mux.Handle("GET /game", gamePage)

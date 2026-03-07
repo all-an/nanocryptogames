@@ -128,6 +128,19 @@ func (db *DB) RecordDeposit(ctx context.Context, sessionID, fromAddress, amountR
 	return err
 }
 
+// GetDepositSender returns the nano_ address of the most recent deposit sender
+// for the given session. Returns an error if no deposit with a known sender exists.
+func (db *DB) GetDepositSender(ctx context.Context, sessionID string) (string, error) {
+	var addr string
+	err := db.pool.QueryRow(ctx,
+		`SELECT from_address FROM nano_transactions
+		 WHERE session_id = $1 AND direction = 'deposit' AND from_address IS NOT NULL
+		 ORDER BY created_at DESC LIMIT 1`,
+		sessionID,
+	).Scan(&addr)
+	return addr, err
+}
+
 // Setting retrieves a single value from the settings table.
 func (db *DB) Setting(ctx context.Context, key string) (string, error) {
 	var value string

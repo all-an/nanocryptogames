@@ -10,6 +10,11 @@
 
     <!-- Left sidebar: deposit panel -->
     <aside class="deposit-panel">
+      <button id="donate-trigger" class="donate-trigger">
+        <span class="donate-trigger-icon">Ӿ</span>
+        Consider a donation — help the dev
+      </button>
+
       <h2 class="deposit-title">Ӿ Deposit</h2>
 
       <div id="deposit-waiting" class="deposit-waiting">
@@ -37,8 +42,13 @@
         </div>
 
         <p class="deposit-note">
-          Funds sent here are yours. Unused balance can be withdrawn after the match.
+          Funds sent here are yours. Click Withdraw to send your balance back to the address you deposited from.
         </p>
+
+        <hr class="deposit-divider">
+
+        <button id="withdraw-btn" class="withdraw-btn">Withdraw</button>
+        <p id="withdraw-status" class="withdraw-status hidden"></p>
       </div>
     </aside>
 
@@ -46,7 +56,7 @@
     <div class="game-wrap">
       <div class="game-header">
         <span class="room-label">Room: <strong>{{.RoomID}}</strong></span>
-        <a href="/" class="leave">Leave</a>
+        <a href="/lobby" class="leave">Leave</a>
       </div>
 
       <!-- data-room is read by game.js to build the WebSocket URL -->
@@ -84,6 +94,31 @@
       <p class="modal-title">Round Over</p>
       <p class="modal-sub" id="round-msg"></p>
       <p class="modal-sub" style="margin-top:6px;color:#555;">Restarting in 3 seconds…</p>
+    </div>
+  </div>
+
+  <!-- Donation modal -->
+  <div id="donate-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-box donate-modal-box">
+      <p class="modal-title">Support the developer</p>
+      <p class="modal-sub">Choose how much XNO to donate from your session balance.</p>
+
+      <div id="donate-balance-info" class="donate-balance-info"></div>
+
+      <div class="donate-presets" id="donate-presets">
+        <button class="donate-preset-btn" data-pct="25">25%</button>
+        <button class="donate-preset-btn" data-pct="50">50%</button>
+        <button class="donate-preset-btn" data-pct="75">75%</button>
+        <button class="donate-preset-btn" data-pct="100">100%</button>
+      </div>
+
+      <p id="donate-selected-amt" class="donate-selected-amt"></p>
+
+      <div class="modal-actions">
+        <button id="donate-confirm" class="btn-donate-confirm" disabled>Donate</button>
+        <button id="donate-cancel" class="btn-secondary">Cancel</button>
+      </div>
+      <p id="donate-status" class="withdraw-status hidden"></p>
     </div>
   </div>
 

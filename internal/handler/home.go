@@ -22,5 +22,5 @@ func (h *HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	h.tmpl.ExecuteTemplate(w, "lobby.html", nil)
+	h.tmpl.ExecuteTemplate(w, "welcome.html", nil)
 }
