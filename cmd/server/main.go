@@ -101,9 +101,37 @@ func main() {
 	mux.Handle("GET /ws/{roomID}", wsHandler)
 
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, closedMiddleware(database, tmpl, mux)); err != nil {
 		log.Fatalf("server: %v", err)
 	}
+}
+
+// closedMiddleware intercepts every request and serves the "game closed" page
+// when the game_closed setting is "true" in the database.
+// Static assets are always served so the closed page renders correctly.
+func closedMiddleware(database *db.DB, tmpl *template.Template, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if database == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// Always allow static assets through.
+		if len(r.URL.Path) >= 8 && r.URL.Path[:8] == "/static/" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		val, err := database.Setting(r.Context(), "game_closed")
+		if err == nil && val == "true" {
+			msg, _ := database.Setting(r.Context(), "game_closed_message")
+			if msg == "" {
+				msg = "The game is temporarily closed. Check back soon!"
+			}
+			w.WriteHeader(http.StatusServiceUnavailable)
+			tmpl.ExecuteTemplate(w, "closed.html", map[string]string{"Message": msg})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // loadMasterSeed reads NANO_MASTER_SEED from the environment (hex-encoded 32 bytes).

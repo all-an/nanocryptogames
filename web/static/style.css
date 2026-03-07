@@ -401,6 +401,24 @@ canvas {
   font-size: 0.85rem;
 }
 
+/* ── Nickname input ── */
+
+.nick-input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid #2a2a4a;
+  background: #0f0f1a;
+  color: #fff;
+  font-size: 0.95rem;
+  outline: none;
+  text-align: center;
+}
+
+.nick-input:focus {
+  border-color: #4a90d9;
+}
+
 /* ── Team picker ── */
 
 .team-buttons {
@@ -846,6 +864,50 @@ canvas {
 
 .withdraw-status--ok  { color: #52C07A; }
 .withdraw-status--err { color: #e05252; }
+
+/* ── Game closed screen ── */
+
+.closed-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.closed-box {
+  background: #0f0f1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 14px;
+  padding: 48px 40px;
+  text-align: center;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.closed-icon {
+  font-size: 3rem;
+}
+
+.closed-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.closed-message {
+  font-size: 1rem;
+  color: #aaa;
+  line-height: 1.6;
+}
+
+.closed-hint {
+  font-size: 0.78rem;
+  color: #444;
+  line-height: 1.5;
+}
 
 /* ── Welcome page ── */
 

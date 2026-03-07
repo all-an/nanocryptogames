@@ -27,6 +27,7 @@ type Player struct {
 	RoomID      string
 	Color       string
 	Team        string // "red" or "blue" — chosen in the lobby
+	Nickname    string // display name entered in the lobby, max 12 chars
 	SeedIndex      uint32   // HD wallet index used to derive this player's key pair
 	GX, GY         int      // current grid position (column, row)
 	SpawnGX        int      // spawn column assigned on join — used for round restarts

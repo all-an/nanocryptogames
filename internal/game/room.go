@@ -59,12 +59,13 @@ type balanceEvent struct {
 
 // playerState is the per-player snapshot included in each broadcast.
 type playerState struct {
-	ID     string `json:"id"`
-	GX     int    `json:"gx"`
-	GY     int    `json:"gy"`
-	Health int    `json:"health"`
-	Color  string `json:"color"`
-	Team   string `json:"team"`
+	ID       string `json:"id"`
+	GX       int    `json:"gx"`
+	GY       int    `json:"gy"`
+	Health   int    `json:"health"`
+	Color    string `json:"color"`
+	Team     string `json:"team"`
+	Nickname string `json:"nickname"`
 }
 
 // worldState is the full game snapshot sent to every client each tick.
@@ -363,12 +364,13 @@ func (r *Room) broadcastState() {
 	state := worldState{Type: "state", Players: make([]playerState, 0, len(r.players))}
 	for _, p := range r.players {
 		state.Players = append(state.Players, playerState{
-			ID:     p.ID,
-			GX:     p.GX,
-			GY:     p.GY,
-			Health: p.Health,
-			Color:  p.Color,
-			Team:   p.Team,
+			ID:       p.ID,
+			GX:       p.GX,
+			GY:       p.GY,
+			Health:   p.Health,
+			Color:    p.Color,
+			Team:     p.Team,
+			Nickname: p.Nickname,
 		})
 	}
 

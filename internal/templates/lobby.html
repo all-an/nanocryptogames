@@ -33,8 +33,17 @@
   <!-- Team picker modal — shown before entering any room -->
   <div id="team-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-box">
-      <p class="modal-title">Choose your team</p>
+      <p class="modal-title">Join Room</p>
       <p class="modal-sub" id="team-room-name"></p>
+      <input
+        type="text"
+        id="nick-input"
+        class="nick-input"
+        placeholder="Your nickname (optional)"
+        maxlength="12"
+        autocomplete="off"
+      >
+      <p class="modal-sub" style="margin-top:4px;">Choose your team</p>
       <div class="team-buttons">
         <button id="team-red" class="btn-team btn-team-red">
           <span class="team-btn-label">Red</span>
@@ -69,12 +78,16 @@
 
     function hideTeamPicker() {
       pendingRoom = null;
+      document.getElementById("nick-input").value = "";
       document.getElementById("team-modal").classList.add("hidden");
     }
 
     function joinWithTeam(team) {
       if (!pendingRoom) return;
-      window.location.href = `/game/${encodeURIComponent(pendingRoom)}?team=${team}`;
+      const nick = document.getElementById("nick-input").value.trim().slice(0, 12);
+      const params = new URLSearchParams({ team });
+      if (nick) params.set("nick", nick);
+      window.location.href = `/game/${encodeURIComponent(pendingRoom)}?${params}`;
     }
 
     document.getElementById("team-red").addEventListener("click",  () => joinWithTeam("red"));

@@ -11,7 +11,9 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
 	"github.com/allanabrahao/nanomultiplayer/internal/game"
@@ -284,6 +286,19 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Team = team
 
+	// Nickname: strip control characters, trim whitespace, cap at 12 runes.
+	nick := strings.TrimSpace(r.URL.Query().Get("nick"))
+	var nickRunes []rune
+	for _, ch := range nick {
+		if unicode.IsPrint(ch) {
+			nickRunes = append(nickRunes, ch)
+		}
+	}
+	if len(nickRunes) > 12 {
+		nickRunes = nickRunes[:12]
+	}
+	p.Nickname = string(nickRunes)
+
 	// Always derive a Nano address — master seed is guaranteed non-empty.
 	// Persist the full player/session record only when a DB is connected.
 	if h.db != nil {
@@ -308,6 +323,7 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"team":        p.Team,
 		"color":       p.Color,
 		"nanoAddress": p.NanoAddress,
+		"nickname":    p.Nickname,
 	})
 	p.Send(initMsg)
 

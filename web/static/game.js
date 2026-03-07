@@ -62,7 +62,8 @@ function cellCentre(gx, gy) {
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
 const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
-const ws      = new WebSocket(`${wsProto}//${location.host}/ws/${roomID}`);
+// Forward all page query params (team, nick) to the WebSocket upgrade request.
+const ws      = new WebSocket(`${wsProto}//${location.host}/ws/${roomID}${location.search}`);
 
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
@@ -446,6 +447,18 @@ function drawPlayer(player, px, py) {
   ctx.restore();
 
   drawHealthBar(px, py - r - 8, player.health);
+
+  if (player.nickname) {
+    ctx.save();
+    ctx.font         = "bold 9px system-ui";
+    ctx.textAlign    = "center";
+    ctx.textBaseline = "top";
+    ctx.fillStyle    = "rgba(0,0,0,0.55)";
+    ctx.fillRect(px - 20, py + r + 3, 40, 11);
+    ctx.fillStyle = player.team === "red" ? "#e88" : "#8af";
+    ctx.fillText(player.nickname.slice(0, 12), px, py + r + 4);
+    ctx.restore();
+  }
 }
 
 function drawHealthBar(cx, cy, health) {
