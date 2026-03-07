@@ -2,13 +2,17 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"html/template"
+	"log"
 	"net/http"
 
+	"github.com/allanabrahao/nanomultiplayer/internal/db"
 	"github.com/allanabrahao/nanomultiplayer/internal/game"
+	"github.com/allanabrahao/nanomultiplayer/internal/nano"
 	"github.com/gorilla/websocket"
 )
 
@@ -41,13 +45,16 @@ func (h *GamePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // WSHandler upgrades HTTP connections to WebSocket and drives the player I/O pumps.
+// db and masterSeed are optional — when nil/empty the game runs without persistence.
 type WSHandler struct {
-	hub *game.Hub
+	hub        *game.Hub
+	db         *db.DB // nil when DATABASE_URL is not configured
+	masterSeed []byte // used for Nano HD wallet derivation
 }
 
-// NewWSHandler wires up the hub dependency.
-func NewWSHandler(hub *game.Hub) *WSHandler {
-	return &WSHandler{hub: hub}
+// NewWSHandler wires up the hub and optional DB/seed dependencies.
+func NewWSHandler(hub *game.Hub, database *db.DB, masterSeed []byte) *WSHandler {
+	return &WSHandler{hub: hub, db: database, masterSeed: masterSeed}
 }
 
 func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -63,17 +70,23 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := game.NewPlayer(newID(), roomID)
+
+	// Persist player and session when DB is available.
+	if h.db != nil && len(h.masterSeed) > 0 {
+		h.persistPlayer(r.Context(), p)
+	}
+
 	room := h.hub.JoinRoom(roomID, p)
 
-	// Tell the client its own ID and colour so it can highlight itself.
+	// Tell the client its own ID, colour, and Nano address.
 	initMsg, _ := json.Marshal(map[string]string{
-		"type":  "init",
-		"id":    p.ID,
-		"color": p.Color,
+		"type":        "init",
+		"id":          p.ID,
+		"color":       p.Color,
+		"nanoAddress": p.NanoAddress,
 	})
 	p.Send(initMsg)
 
-	// writePump runs concurrently; readPump blocks until the connection closes.
 	go writePump(conn, p)
 	readPump(conn, p, room)
 
@@ -81,8 +94,39 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.Close()
 }
 
+// persistPlayer derives a Nano wallet address and creates DB records for the player.
+// Failures are logged but do not block the WebSocket connection.
+func (h *WSHandler) persistPlayer(ctx context.Context, p *game.Player) {
+	seedIndex, err := h.db.NextSeedIndex(ctx)
+	if err != nil {
+		log.Printf("wallet: next seed index: %v", err)
+		return
+	}
+
+	address, err := nano.DeriveAddress(h.masterSeed, uint32(seedIndex))
+	if err != nil {
+		log.Printf("wallet: derive address index=%d: %v", seedIndex, err)
+		return
+	}
+	p.NanoAddress = address
+
+	dbID, err := h.db.CreatePlayer(ctx, address, seedIndex)
+	if err != nil {
+		log.Printf("db: create player: %v", err)
+		return
+	}
+	p.DBID = dbID
+
+	sessionID, err := h.db.CreateSession(ctx, p.RoomID, dbID)
+	if err != nil {
+		log.Printf("db: create session: %v", err)
+		return
+	}
+	p.SessionID = sessionID
+}
+
 // readPump reads client input messages and forwards them to the room's input channel.
-// It blocks until the WebSocket connection is closed.
+// Blocks until the WebSocket connection is closed.
 func readPump(conn *websocket.Conn, p *game.Player, room *game.Room) {
 	defer conn.Close()
 
@@ -105,7 +149,7 @@ func readPump(conn *websocket.Conn, p *game.Player, room *game.Room) {
 }
 
 // writePump reads from the player's message channel and writes to the WebSocket.
-// It exits when the channel is closed (player removed from room).
+// Exits when the channel is closed (player removed from room).
 func writePump(conn *websocket.Conn, p *game.Player) {
 	defer conn.Close()
 
@@ -116,7 +160,7 @@ func writePump(conn *websocket.Conn, p *game.Player) {
 	}
 }
 
-// newID generates a random hex string suitable for use as a player or room ID.
+// newID generates a random hex string used as a short player ID over WebSocket.
 func newID() string {
 	b := make([]byte, 8)
 	rand.Read(b)

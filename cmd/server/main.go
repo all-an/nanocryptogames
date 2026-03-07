@@ -1,13 +1,17 @@
 // main.go is the entry point for the nano-multiplayer server.
-// It wires HTTP routes, the WebSocket hub, and static file serving.
+// It wires HTTP routes, the WebSocket hub, static file serving, and the database.
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
 
+	"github.com/allanabrahao/nanomultiplayer/internal/db"
 	"github.com/allanabrahao/nanomultiplayer/internal/game"
 	"github.com/allanabrahao/nanomultiplayer/internal/handler"
 )
@@ -18,33 +22,75 @@ func main() {
 		addr = ":8080"
 	}
 
-	// Parse all HTML templates from disk.
-	// Path is relative to the working directory (project root when using `go run ./cmd/server`).
+	ctx := context.Background()
+
+	// ── Database (optional for local dev) ────────────────────────────────────
+	var database *db.DB
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		var err error
+		database, err = db.Connect(ctx, dbURL)
+		if err != nil {
+			log.Fatalf("db connect: %v", err)
+		}
+		defer database.Close()
+
+		if err := database.Migrate(ctx); err != nil {
+			log.Fatalf("db migrate: %v", err)
+		}
+		log.Println("database connected and migrated")
+	} else {
+		log.Println("DATABASE_URL not set — running without persistence")
+	}
+
+	// ── Nano master seed ─────────────────────────────────────────────────────
+	masterSeed := loadMasterSeed()
+
+	// ── Templates ────────────────────────────────────────────────────────────
+	// Path is relative to the working directory (project root when running go run ./cmd/server).
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
 
+	// ── Hub ───────────────────────────────────────────────────────────────────
 	hub := game.NewHub()
 
+	// ── Routes ───────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
 
-	// Static assets (CSS, JS)
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
+	mux.Handle("GET /static/",
+		http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
-	// Lobby page
 	mux.Handle("GET /", handler.NewHomeHandler(tmpl))
 
-	// Game page — supports both /game?room=foo (form POST) and /game/{roomID}
 	gamePage := handler.NewGamePageHandler(tmpl)
 	mux.Handle("GET /game", gamePage)
 	mux.Handle("GET /game/{roomID}", gamePage)
 
-	// Active room list — polled by the lobby page every few seconds
 	mux.Handle("GET /api/rooms", handler.NewRoomsHandler(hub))
 
-	// WebSocket endpoint — one connection per player
-	mux.Handle("GET /ws/{roomID}", handler.NewWSHandler(hub))
+	mux.Handle("GET /ws/{roomID}", handler.NewWSHandler(hub, database, masterSeed))
 
 	log.Printf("listening on %s", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("server: %v", err)
 	}
+}
+
+// loadMasterSeed reads NANO_MASTER_SEED from the environment (hex-encoded 32 bytes).
+// If unset, a random seed is generated and logged — wallets are ephemeral in this mode.
+func loadMasterSeed() []byte {
+	raw := os.Getenv("NANO_MASTER_SEED")
+	if raw != "" {
+		seed, err := hex.DecodeString(raw)
+		if err != nil || len(seed) != 32 {
+			log.Fatalf("NANO_MASTER_SEED must be 64 hex characters (32 bytes)")
+		}
+		return seed
+	}
+
+	// Generate a temporary seed for local development.
+	seed := make([]byte, 32)
+	if _, err := rand.Read(seed); err != nil {
+		log.Fatalf("generate dev seed: %v", err)
+	}
+	log.Printf("WARNING: NANO_MASTER_SEED not set — using ephemeral dev seed %s", hex.EncodeToString(seed))
+	return seed
 }

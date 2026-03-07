@@ -15,16 +15,19 @@ var colorPalette = []string{
 
 // Player holds the in-memory state for a single connected player.
 type Player struct {
-	ID     string
-	RoomID string
-	Color  string
-	GX, GY int // grid position (column, row)
-	Health int
-	send   chan []byte // outbound messages to this player's WebSocket
+	ID          string // short hex ID used over WebSocket
+	DBID        string // UUID from the players table (empty when DB is not configured)
+	SessionID   string // UUID from game_sessions (empty when DB is not configured)
+	NanoAddress string // derived nano_ address for this session wallet
+	RoomID      string
+	Color       string
+	GX, GY      int // grid position (column, row)
+	Health      int
+	send        chan []byte // outbound messages to this player's WebSocket
 }
 
 // NewPlayer creates a Player with full health and a buffered send channel.
-// Color and starting position are assigned by the room on join.
+// Color, position, and Nano fields are assigned by the room or handler.
 func NewPlayer(id, roomID string) *Player {
 	return &Player{
 		ID:     id,
