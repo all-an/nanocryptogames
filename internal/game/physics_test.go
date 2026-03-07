@@ -1,6 +1,9 @@
 package game
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestClampToGrid_withinBounds(t *testing.T) {
 	gx, gy := clampToGrid(5, 5)
@@ -37,7 +40,13 @@ func TestClampToGrid_clampBottom(t *testing.T) {
 	}
 }
 
-func TestIsAdjacentMove_validDirections(t *testing.T) {
+func TestIsValidMove_sameCell(t *testing.T) {
+	if isValidMove(5, 5, 5, 5) {
+		t.Error("same cell should not be a valid move")
+	}
+}
+
+func TestIsValidMove_adjacentCells(t *testing.T) {
 	cases := [][4]int{
 		{5, 5, 6, 5}, // right
 		{5, 5, 4, 5}, // left
@@ -45,26 +54,51 @@ func TestIsAdjacentMove_validDirections(t *testing.T) {
 		{5, 5, 5, 4}, // up
 	}
 	for _, c := range cases {
-		if !isAdjacentMove(c[0], c[1], c[2], c[3]) {
-			t.Errorf("expected adjacent: (%d,%d)→(%d,%d)", c[0], c[1], c[2], c[3])
+		if !isValidMove(c[0], c[1], c[2], c[3]) {
+			t.Errorf("adjacent move should be valid: (%d,%d)→(%d,%d)", c[0], c[1], c[2], c[3])
 		}
 	}
 }
 
-func TestIsAdjacentMove_diagonal(t *testing.T) {
-	if isAdjacentMove(5, 5, 6, 6) {
-		t.Error("diagonal should not be adjacent")
+func TestIsValidMove_diagonalWithinRadius(t *testing.T) {
+	// Diagonal distance is sqrt(2) ≈ 1.41 — well within radius 5.
+	if !isValidMove(5, 5, 6, 6) {
+		t.Error("diagonal one step should be valid within radius 5")
 	}
 }
 
-func TestIsAdjacentMove_sameCell(t *testing.T) {
-	if isAdjacentMove(5, 5, 5, 5) {
-		t.Error("same cell should not be adjacent")
+func TestIsValidMove_exactRadius(t *testing.T) {
+	// Move exactly 5 squares along one axis — on the boundary.
+	if !isValidMove(5, 5, 10, 5) {
+		t.Error("move of exactly radius 5 should be valid")
 	}
 }
 
-func TestIsAdjacentMove_twoSteps(t *testing.T) {
-	if isAdjacentMove(5, 5, 7, 5) {
-		t.Error("two steps should not be adjacent")
+func TestIsValidMove_justBeyondRadius(t *testing.T) {
+	// Move 6 squares — just outside the radius.
+	if isValidMove(5, 5, 11, 5) {
+		t.Error("move of 6 squares should be invalid (beyond radius 5)")
+	}
+}
+
+func TestIsValidMove_diagonalBeyondRadius(t *testing.T) {
+	// (4,4) diagonal = sqrt(32) ≈ 5.66 — outside radius 5.
+	dist := math.Sqrt(float64(4*4 + 4*4))
+	if dist <= MovementRadius {
+		t.Fatalf("test assumption wrong: dist=%.2f should be > %.1f", dist, MovementRadius)
+	}
+	if isValidMove(5, 5, 9, 9) {
+		t.Error("diagonal (4,4) is beyond radius 5 and should be invalid")
+	}
+}
+
+func TestIsValidMove_diagonalWithinRadius5(t *testing.T) {
+	// (3,4) diagonal = 5.0 exactly — on the boundary.
+	dist := math.Sqrt(float64(3*3 + 4*4))
+	if math.Abs(dist-5.0) > 0.001 {
+		t.Fatalf("test assumption wrong: dist=%.4f should be 5.0", dist)
+	}
+	if !isValidMove(5, 5, 8, 9) {
+		t.Error("(3,4) diagonal is exactly radius 5 and should be valid")
 	}
 }

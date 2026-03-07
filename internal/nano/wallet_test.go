@@ -100,3 +100,30 @@ func TestNanoBase32Encode_onlyUsesAlphabet(t *testing.T) {
 		}
 	}
 }
+
+func TestPublicKeyFromAddress_roundtrip(t *testing.T) {
+	pub, _, _ := DeriveKeypair(knownSeed, 0)
+	addr, _ := AddressFromPublicKey(pub)
+
+	decoded, err := PublicKeyFromAddress(addr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(decoded) != string(pub) {
+		t.Error("decoded public key does not match original")
+	}
+}
+
+func TestPublicKeyFromAddress_invalidPrefix(t *testing.T) {
+	_, err := PublicKeyFromAddress("xrb_notvalid")
+	if err == nil {
+		t.Error("expected error for wrong prefix")
+	}
+}
+
+func TestPublicKeyFromAddress_wrongLength(t *testing.T) {
+	_, err := PublicKeyFromAddress("nano_short")
+	if err == nil {
+		t.Error("expected error for short address")
+	}
+}

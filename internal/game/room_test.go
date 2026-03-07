@@ -14,7 +14,6 @@ func TestRoom_JoinAssignsColorAndSpawn(t *testing.T) {
 	if p.Color == "" {
 		t.Error("Join must assign a colour")
 	}
-	// Spawn must be a valid non-zero grid position (first spawn is {1,1}).
 	if p.GX == 0 && p.GY == 0 {
 		t.Error("Join must assign a non-zero spawn position")
 	}
@@ -34,20 +33,17 @@ func TestRoom_JoinAssignsDifferentColors(t *testing.T) {
 
 func TestRoom_Empty(t *testing.T) {
 	r := NewRoom("test")
-
 	if !r.Empty() {
 		t.Error("new room should be empty")
 	}
 
 	p := NewPlayer("p1", "test")
 	r.Join(p)
-
 	if r.Empty() {
 		t.Error("room with a player should not be empty")
 	}
 
 	r.Leave(p)
-
 	if !r.Empty() {
 		t.Error("room should be empty after player leaves")
 	}
@@ -77,42 +73,52 @@ func TestRoom_BroadcastState_sendsJSON(t *testing.T) {
 	}
 }
 
-func TestRoom_ApplyInput_adjacentMove(t *testing.T) {
+func TestRoom_ApplyInput_withinRadius(t *testing.T) {
+	r := NewRoom("test")
+	p := NewPlayer("p1", "test")
+	r.Join(p)
+
+	// Move 5 squares right — exactly at the radius boundary.
+	target := p.GX + 5
+	r.applyInput(Input{PlayerID: "p1", GX: target, GY: p.GY})
+	if p.GX != target {
+		t.Errorf("move within radius should be accepted: expected GX=%d got %d", target, p.GX)
+	}
+}
+
+func TestRoom_ApplyInput_beyondRadius(t *testing.T) {
 	r := NewRoom("test")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
 	startGX := p.GX
-	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 1, GY: p.GY})
-
-	if p.GX != startGX+1 {
-		t.Errorf("expected GX %d, got %d", startGX+1, p.GX)
+	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 6, GY: p.GY})
+	if p.GX != startGX {
+		t.Error("move beyond radius should be rejected")
 	}
 }
 
-func TestRoom_ApplyInput_rejectsDiagonal(t *testing.T) {
+func TestRoom_ApplyInput_diagonalWithinRadius(t *testing.T) {
+	r := NewRoom("test")
+	p := NewPlayer("p1", "test")
+	r.Join(p)
+
+	// (3,4) offset = Euclidean distance 5.0 — exactly on the boundary.
+	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 3, GY: p.GY + 4})
+	if p.GX != spawnPoints[0][0]+3 {
+		t.Errorf("(3,4) diagonal move should be accepted (distance=5.0)")
+	}
+}
+
+func TestRoom_ApplyInput_sameCell(t *testing.T) {
 	r := NewRoom("test")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
 	startGX, startGY := p.GX, p.GY
-	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 1, GY: p.GY + 1})
-
+	r.applyInput(Input{PlayerID: "p1", GX: p.GX, GY: p.GY})
 	if p.GX != startGX || p.GY != startGY {
-		t.Error("diagonal move should be rejected")
-	}
-}
-
-func TestRoom_ApplyInput_rejectsTwoSteps(t *testing.T) {
-	r := NewRoom("test")
-	p := NewPlayer("p1", "test")
-	r.Join(p)
-
-	startGX := p.GX
-	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 2, GY: p.GY})
-
-	if p.GX != startGX {
-		t.Error("two-step move should be rejected")
+		t.Error("same-cell move should be rejected")
 	}
 }
 
@@ -121,10 +127,9 @@ func TestRoom_ApplyInput_clampsToGrid(t *testing.T) {
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
-	// Place player at right edge and try to move one step further right.
-	p.GX = GridCols - 1
-	r.applyInput(Input{PlayerID: "p1", GX: GridCols, GY: p.GY})
-
+	// Place player near right edge, move within radius but past grid boundary.
+	p.GX = GridCols - 2
+	r.applyInput(Input{PlayerID: "p1", GX: GridCols + 3, GY: p.GY})
 	if p.GX > GridCols-1 {
 		t.Errorf("player exceeded right grid bound: GX=%d", p.GX)
 	}

@@ -134,8 +134,8 @@ func (r *Room) applyInput(input Input) {
 		return
 	}
 
-	// Server enforces adjacency — clients cannot teleport.
-	if !isAdjacentMove(p.GX, p.GY, input.GX, input.GY) {
+	// Server enforces the movement radius — clients cannot teleport beyond it.
+	if !isValidMove(p.GX, p.GY, input.GX, input.GY) {
 		return
 	}
 

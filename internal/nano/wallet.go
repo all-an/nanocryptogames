@@ -70,6 +70,47 @@ func DeriveAddress(seed []byte, index uint32) (string, error) {
 	return AddressFromPublicKey(pubKey)
 }
 
+// PublicKeyFromAddress extracts the 32-byte ed25519 public key from a nano_ address.
+// It is the inverse of AddressFromPublicKey and is used to build send block link fields.
+func PublicKeyFromAddress(address string) ([]byte, error) {
+	if !strings.HasPrefix(address, "nano_") {
+		return nil, fmt.Errorf("address must start with nano_")
+	}
+	body := strings.TrimPrefix(address, "nano_")
+	if len(body) != 60 {
+		return nil, fmt.Errorf("invalid address: expected 60 chars after nano_, got %d", len(body))
+	}
+	// First 52 chars encode the 256-bit public key with 4 leading padding bits.
+	return nanoBase32Decode(body[:52], 4)
+}
+
+// nanoBase32Decode is the inverse of nanoBase32Encode.
+// It strips leadingZeroBits padding bits from the decoded bit stream.
+func nanoBase32Decode(s string, leadingZeroBits int) ([]byte, error) {
+	totalBits := len(s) * 5
+	dataBits := totalBits - leadingZeroBits
+	data := make([]byte, dataBits/8)
+
+	for i, c := range s {
+		idx := strings.IndexRune(nanoAlphabet, c)
+		if idx < 0 {
+			return nil, fmt.Errorf("invalid character %q in Nano address", c)
+		}
+		for j := range 5 {
+			paddedPos := i*5 + j
+			if paddedPos < leadingZeroBits {
+				continue
+			}
+			dataPos := paddedPos - leadingZeroBits
+			byteIdx := dataPos / 8
+			bitIdx := 7 - (dataPos % 8)
+			bit := (idx >> (4 - j)) & 1
+			data[byteIdx] |= byte(bit) << bitIdx
+		}
+	}
+	return data, nil
+}
+
 // nanoBase32Encode converts bytes to Nano's base32 string.
 // leadingZeroBits pads the MSB end of the bit stream so that totalBits is a multiple of 5.
 func nanoBase32Encode(data []byte, leadingZeroBits int) string {

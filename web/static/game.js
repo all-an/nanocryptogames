@@ -8,6 +8,7 @@ const ctx    = canvas.getContext("2d");
 const CELL = 40;
 const COLS = 25;
 const ROWS = 17;
+const MOVE_RADIUS = 5.0; // must match MovementRadius in physics.go
 
 // Room ID embedded by the server-rendered template.
 const roomID = canvas.dataset.room;
@@ -56,9 +57,13 @@ function myPosition() {
   return state.players?.find(p => p.id === myID) ?? null;
 }
 
-// isAdjacent returns true when (gx,gy) is exactly one cardinal step from (ox,oy).
-function isAdjacent(ox, oy, gx, gy) {
-  return Math.abs(gx - ox) + Math.abs(gy - oy) === 1;
+// isReachable returns true when (gx,gy) is within the movement radius of (ox,oy).
+// Uses Euclidean distance, matching the server-side isValidMove check.
+function isReachable(ox, oy, gx, gy) {
+  if (ox === gx && oy === gy) return false;
+  const dx = gx - ox;
+  const dy = gy - oy;
+  return Math.sqrt(dx * dx + dy * dy) <= MOVE_RADIUS;
 }
 
 // ── Keyboard input ────────────────────────────────────────────────────────────
@@ -77,6 +82,7 @@ document.addEventListener("keydown", (e) => {
   let gx = me.gx;
   let gy = me.gy;
 
+  // Keyboard moves one square at a time (still within the 5-cell radius).
   switch (e.key) {
     case "ArrowLeft":  case "a": gx--; break;
     case "ArrowRight": case "d": gx++; break;
@@ -112,7 +118,7 @@ canvas.addEventListener("click", (e) => {
   const gx   = Math.floor((e.clientX - rect.left)  / CELL);
   const gy   = Math.floor((e.clientY - rect.top)   / CELL);
 
-  if (!isAdjacent(me.gx, me.gy, gx, gy)) return;
+  if (!isReachable(me.gx, me.gy, gx, gy)) return;
 
   pending = { gx, gy };
   showModal();
@@ -155,17 +161,20 @@ function draw() {
 
   drawGrid();
 
-  // Highlight the hovered cell if it is adjacent to the local player.
-  if (hoverCell) {
-    const me = myPosition();
-    if (me && isAdjacent(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
-      drawCellHighlight(hoverCell.gx, hoverCell.gy, "rgba(255,255,255,0.08)");
-    }
+  // Draw the reachable area for the local player as a subtle blue tint.
+  const me = myPosition();
+  if (me) {
+    drawReachableArea(me);
+  }
+
+  // Highlight the hovered cell more prominently if it is reachable.
+  if (hoverCell && me && isReachable(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
+    drawCellHighlight(hoverCell.gx, hoverCell.gy, "rgba(255,255,255,0.10)");
   }
 
   // Highlight the pending-move cell while the modal is open.
   if (pending) {
-    drawCellHighlight(pending.gx, pending.gy, "rgba(74,144,217,0.25)");
+    drawCellHighlight(pending.gx, pending.gy, "rgba(74,144,217,0.30)");
   }
 
   for (const p of state.players || []) {
@@ -192,6 +201,19 @@ function drawGrid() {
     ctx.moveTo(0,           row * CELL);
     ctx.lineTo(COLS * CELL, row * CELL);
     ctx.stroke();
+  }
+}
+
+// drawReachableArea fills every cell within MOVE_RADIUS of the local player with a dim tint.
+// This gives the player a clear visual of their movement range.
+function drawReachableArea(me) {
+  ctx.fillStyle = "rgba(74,144,217,0.06)";
+  for (let gy = 0; gy < ROWS; gy++) {
+    for (let gx = 0; gx < COLS; gx++) {
+      if (isReachable(me.gx, me.gy, gx, gy)) {
+        ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
+      }
+    }
   }
 }
 
