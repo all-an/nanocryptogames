@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ӿ {{.RoomID}}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="game-wrap">
+    <div class="game-header">
+      <span class="room-label">Room: <strong>{{.RoomID}}</strong></span>
+      <a href="/" class="leave">Leave</a>
+    </div>
+    <!-- data-room is read by game.js to build the WebSocket URL -->
+    <canvas id="game" data-room="{{.RoomID}}" width="1000" height="700"></canvas>
+    <p class="controls-hint">Move: WASD or arrow keys</p>
+  </div>
+  <script src="/static/game.js"></script>
+</body>
+</html>

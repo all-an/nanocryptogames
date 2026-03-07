@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Nano Multiplayer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="lobby">
+    <h1>Ӿ Nano Multiplayer</h1>
+    <p class="subtitle">Enter a room name to play</p>
+    <!-- GET /game?room=foo → game page handler redirects to /game/{foo} -->
+    <form class="lobby-form" action="/game" method="get">
+      <input
+        type="text"
+        name="room"
+        placeholder="Room name"
+        autocomplete="off"
+        required
+      >
+      <button type="submit">Join Room</button>
+    </form>
+  </div>
+</body>
+</html>

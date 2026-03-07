@@ -1,0 +1,111 @@
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a1a2e;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+}
+
+/* ── Lobby ── */
+
+.lobby {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 20px;
+}
+
+.lobby h1 {
+  font-size: 2.8rem;
+  letter-spacing: 0.02em;
+}
+
+.lobby .subtitle {
+  color: #888;
+  font-size: 1rem;
+}
+
+.lobby-form {
+  display: flex;
+  gap: 10px;
+}
+
+.lobby-form input {
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #0f0f1a;
+  color: #fff;
+  font-size: 1rem;
+  width: 220px;
+  outline: none;
+}
+
+.lobby-form input:focus {
+  border-color: #4a90d9;
+}
+
+.lobby-form button {
+  padding: 10px 24px;
+  border-radius: 6px;
+  border: none;
+  background: #4a90d9;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.lobby-form button:hover {
+  background: #357abd;
+}
+
+/* ── Game ── */
+
+.game-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  gap: 10px;
+}
+
+.game-header {
+  width: 1000px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.room-label strong {
+  color: #fff;
+}
+
+.leave {
+  color: #888;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.leave:hover {
+  color: #fff;
+}
+
+canvas {
+  display: block;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+}
+
+.controls-hint {
+  color: #555;
+  font-size: 0.8rem;
+}
