@@ -1,24 +1,33 @@
 // game.js — Grid-based Canvas renderer and WebSocket client.
-// Movement is one square at a time; the server validates every move.
+// Server positions are authoritative grid cells (gx, gy).
+// Visual positions (px, py) are interpolated each frame for smooth movement.
 
 const canvas = document.getElementById("game");
 const ctx    = canvas.getContext("2d");
 
 // Grid constants — must match server-side physics.go values.
-const CELL = 40;
-const COLS = 25;
-const ROWS = 17;
+const CELL        = 40;
+const COLS        = 25;
+const ROWS        = 17;
 const MOVE_RADIUS = 5.0; // must match MovementRadius in physics.go
+
+// Lerp factor applied each frame (~60 fps).
+// 0.18 gives a smooth ~200 ms glide; raise toward 1.0 for snappier feel.
+const LERP = 0.18;
 
 // Room ID embedded by the server-rendered template.
 const roomID = canvas.dataset.room;
 
-// ── State ────────────────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────────
 
-let myID      = null;   // assigned by server "init" message
+let myID      = null;
 let state     = { players: [] };
-let hoverCell = null;   // {gx, gy} grid cell under the mouse cursor
-let pending   = null;   // {gx, gy} cell chosen via click, awaiting modal confirm
+let hoverCell = null;  // {gx, gy}
+let pending   = null;  // {gx, gy} awaiting modal confirm
+
+// playerVisuals stores the smooth pixel position for each player.
+// key: player ID → { px, py }  (pixel centre of the circle)
+const playerVisuals = {};
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
@@ -31,6 +40,16 @@ ws.onmessage = (event) => {
     myID = msg.id;
   } else if (msg.type === "state") {
     state = msg;
+    // Seed visual positions for players appearing for the first time
+    // so they don't slide in from (0, 0).
+    for (const p of state.players) {
+      if (!playerVisuals[p.id]) {
+        playerVisuals[p.id] = {
+          px: p.gx * CELL + CELL / 2,
+          py: p.gy * CELL + CELL / 2,
+        };
+      }
+    }
   }
 };
 
@@ -38,27 +57,25 @@ ws.onclose = () => {
   ctx.fillStyle = "rgba(0,0,0,0.7)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#fff";
-  ctx.font = "24px system-ui";
+  ctx.font      = "24px system-ui";
   ctx.textAlign = "center";
   ctx.fillText("Disconnected", canvas.width / 2, canvas.height / 2);
 };
 
 // ── Move helpers ──────────────────────────────────────────────────────────────
 
-// sendMove transmits a target grid cell to the server.
-// The server validates adjacency — we never trust client-side checks for game state.
 function sendMove(gx, gy) {
   if (ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ gx, gy }));
 }
 
-// myPosition returns the local player's current grid position from the latest state.
+// myPosition returns the local player's authoritative grid position.
+// Used for movement validation — NOT for rendering (use playerVisuals for that).
 function myPosition() {
   return state.players?.find(p => p.id === myID) ?? null;
 }
 
-// isReachable returns true when (gx,gy) is within the movement radius of (ox,oy).
-// Uses Euclidean distance, matching the server-side isValidMove check.
+// isReachable checks Euclidean distance, matching the server isValidMove.
 function isReachable(ox, oy, gx, gy) {
   if (ox === gx && oy === gy) return false;
   const dx = gx - ox;
@@ -68,9 +85,8 @@ function isReachable(ox, oy, gx, gy) {
 
 // ── Keyboard input ────────────────────────────────────────────────────────────
 
-// Cooldown prevents rapid-fire moves from holding a key.
 let lastMoveAt = 0;
-const MOVE_COOLDOWN = 150; // ms
+const MOVE_COOLDOWN = 150; // ms — prevents key-hold spam
 
 document.addEventListener("keydown", (e) => {
   const me = myPosition();
@@ -82,7 +98,6 @@ document.addEventListener("keydown", (e) => {
   let gx = me.gx;
   let gy = me.gy;
 
-  // Keyboard moves one square at a time (still within the 5-cell radius).
   switch (e.key) {
     case "ArrowLeft":  case "a": gx--; break;
     case "ArrowRight": case "d": gx++; break;
@@ -91,9 +106,7 @@ document.addEventListener("keydown", (e) => {
     default: return;
   }
 
-  // Prevent the browser from scrolling the page with arrow keys.
   e.preventDefault();
-
   lastMoveAt = now;
   sendMove(gx, gy);
 });
@@ -103,8 +116,8 @@ document.addEventListener("keydown", (e) => {
 canvas.addEventListener("mousemove", (e) => {
   const rect = canvas.getBoundingClientRect();
   hoverCell = {
-    gx: Math.floor((e.clientX - rect.left)  / CELL),
-    gy: Math.floor((e.clientY - rect.top)   / CELL),
+    gx: Math.floor((e.clientX - rect.left) / CELL),
+    gy: Math.floor((e.clientY - rect.top)  / CELL),
   };
 });
 
@@ -115,8 +128,8 @@ canvas.addEventListener("click", (e) => {
   if (!me) return;
 
   const rect = canvas.getBoundingClientRect();
-  const gx   = Math.floor((e.clientX - rect.left)  / CELL);
-  const gy   = Math.floor((e.clientY - rect.top)   / CELL);
+  const gx = Math.floor((e.clientX - rect.left) / CELL);
+  const gy = Math.floor((e.clientY - rect.top)  / CELL);
 
   if (!isReachable(me.gx, me.gy, gx, gy)) return;
 
@@ -126,9 +139,9 @@ canvas.addEventListener("click", (e) => {
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
-const modal         = document.getElementById("move-modal");
-const btnConfirm    = document.getElementById("modal-confirm");
-const btnCancel     = document.getElementById("modal-cancel");
+const modal      = document.getElementById("move-modal");
+const btnConfirm = document.getElementById("modal-confirm");
+const btnCancel  = document.getElementById("modal-cancel");
 
 function showModal() {
   modal.classList.remove("hidden");
@@ -147,38 +160,62 @@ btnConfirm.addEventListener("click", () => {
 
 btnCancel.addEventListener("click", hideModal);
 
-// Close modal with Escape key.
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") hideModal();
 });
 
+// ── Smooth interpolation ──────────────────────────────────────────────────────
+
+// updateVisuals advances each player's visual position toward their server grid position.
+// Called once per animation frame before drawing.
+function updateVisuals() {
+  const activeIDs = new Set();
+
+  for (const p of state.players || []) {
+    activeIDs.add(p.id);
+
+    const targetPx = p.gx * CELL + CELL / 2;
+    const targetPy = p.gy * CELL + CELL / 2;
+
+    const v = playerVisuals[p.id];
+    if (!v) continue; // seeded in ws.onmessage; shouldn't happen
+
+    // Lerp toward target. Snap when very close to avoid infinite micro-movement.
+    const dx = targetPx - v.px;
+    const dy = targetPy - v.py;
+    v.px = Math.abs(dx) < 0.5 ? targetPx : v.px + dx * LERP;
+    v.py = Math.abs(dy) < 0.5 ? targetPy : v.py + dy * LERP;
+  }
+
+  // Remove visuals for players who have left the room.
+  for (const id in playerVisuals) {
+    if (!activeIDs.has(id)) delete playerVisuals[id];
+  }
+}
+
 // ── Renderer ──────────────────────────────────────────────────────────────────
 
 function draw() {
-  // Background fill
   ctx.fillStyle = "#1a1a2e";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  updateVisuals();
   drawGrid();
 
-  // Draw the reachable area for the local player as a subtle blue tint.
   const me = myPosition();
-  if (me) {
-    drawReachableArea(me);
-  }
+  if (me) drawReachableArea(me);
 
-  // Highlight the hovered cell more prominently if it is reachable.
   if (hoverCell && me && isReachable(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
     drawCellHighlight(hoverCell.gx, hoverCell.gy, "rgba(255,255,255,0.10)");
   }
 
-  // Highlight the pending-move cell while the modal is open.
   if (pending) {
     drawCellHighlight(pending.gx, pending.gy, "rgba(74,144,217,0.30)");
   }
 
   for (const p of state.players || []) {
-    drawPlayer(p);
+    const v = playerVisuals[p.id];
+    if (v) drawPlayer(p, v.px, v.py);
   }
 
   requestAnimationFrame(draw);
@@ -195,7 +232,6 @@ function drawGrid() {
     ctx.lineTo(col * CELL, ROWS * CELL);
     ctx.stroke();
   }
-
   for (let row = 0; row <= ROWS; row++) {
     ctx.beginPath();
     ctx.moveTo(0,           row * CELL);
@@ -204,8 +240,7 @@ function drawGrid() {
   }
 }
 
-// drawReachableArea fills every cell within MOVE_RADIUS of the local player with a dim tint.
-// This gives the player a clear visual of their movement range.
+// drawReachableArea fills every cell within MOVE_RADIUS with a dim tint.
 function drawReachableArea(me) {
   ctx.fillStyle = "rgba(74,144,217,0.06)";
   for (let gy = 0; gy < ROWS; gy++) {
@@ -217,23 +252,20 @@ function drawReachableArea(me) {
   }
 }
 
-// drawCellHighlight fills a single grid cell with a semi-transparent colour.
 function drawCellHighlight(gx, gy, color) {
   ctx.fillStyle = color;
   ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
 }
 
-// drawPlayer renders a Ӿ circle centred in its grid cell.
-function drawPlayer(player) {
-  const cx = player.gx * CELL + CELL / 2;
-  const cy = player.gy * CELL + CELL / 2;
-  const r  = CELL / 2 - 2; // slight inset so circle fits cleanly in the cell
-
+// drawPlayer renders a Ӿ circle at the given smooth pixel position (px, py).
+// px/py come from playerVisuals, not the raw grid position.
+function drawPlayer(player, px, py) {
+  const r    = CELL / 2 - 2;
   const isMe = player.id === myID;
 
   // Circle body
   ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.arc(px, py, r, 0, Math.PI * 2);
   ctx.fillStyle = player.color;
   ctx.fill();
 
@@ -244,19 +276,18 @@ function drawPlayer(player) {
     ctx.stroke();
   }
 
-  // Ӿ glyph centred in the circle
+  // Ӿ glyph
   ctx.fillStyle    = "#ffffff";
   ctx.font         = "bold 15px system-ui";
   ctx.textAlign    = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("Ӿ", cx, cy);
+  ctx.fillText("Ӿ", px, py);
 
   // Health bar above the circle
-  drawHealthBar(cx, cy - r - 8, player.health);
+  drawHealthBar(px, py - r - 8, player.health);
 }
 
-// drawHealthBar renders a small coloured bar above the player.
-// Colour shifts green → amber → red as health drops.
+// drawHealthBar renders a small bar above the player — green → amber → red.
 function drawHealthBar(cx, cy, health) {
   const w   = CELL - 4;
   const h   = 4;
