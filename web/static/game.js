@@ -1,6 +1,6 @@
 // game.js — Grid-based Canvas renderer and WebSocket client.
 // Server positions are authoritative grid cells (gx, gy).
-// Visual positions (px, py) are interpolated each frame for smooth movement.
+// Visual movement follows a cell-by-cell path; no straight-line teleports.
 
 const canvas = document.getElementById("game");
 const ctx    = canvas.getContext("2d");
@@ -9,25 +9,41 @@ const ctx    = canvas.getContext("2d");
 const CELL        = 40;
 const COLS        = 25;
 const ROWS        = 17;
-const MOVE_RADIUS = 5.0; // must match MovementRadius in physics.go
+const MOVE_RADIUS = 5.0;   // must match MovementRadius in physics.go
+const MOVE_SPEED  = 6;     // pixels per frame (~60 fps → ~100ms per cell)
 
-// Lerp factor applied each frame (~60 fps).
-// 0.18 gives a smooth ~200 ms glide; raise toward 1.0 for snappier feel.
-const LERP = 0.18;
-
-// Room ID embedded by the server-rendered template.
 const roomID = canvas.dataset.room;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let myID      = null;
 let state     = { players: [] };
-let hoverCell = null;  // {gx, gy}
-let pending   = null;  // {gx, gy} awaiting modal confirm
+let hoverCell = null;
+let pending   = null;
 
-// playerVisuals stores the smooth pixel position for each player.
-// key: player ID → { px, py }  (pixel centre of the circle)
+// playerVisuals: { [id]: { px, py, gridX, gridY, waypoints: [{gx,gy}] } }
+// px/py   — current smooth pixel position of the circle centre
+// gridX/Y — last known authoritative grid position from the server
+// waypoints — queue of intermediate cell centres still to pass through
 const playerVisuals = {};
+
+// ── Path helpers ──────────────────────────────────────────────────────────────
+
+// computePath returns the list of grid cells to step through when moving from
+// (fromGX,fromGY) to (toGX,toGY).  Each step is one Chebyshev move (diagonal
+// counts as one step), so the path always passes through cell centres — never
+// cuts straight across the grid in pixel space.
+function computePath(fromGX, fromGY, toGX, toGY) {
+  const path = [];
+  let cx = fromGX;
+  let cy = fromGY;
+  while (cx !== toGX || cy !== toGY) {
+    cx += Math.sign(toGX - cx);
+    cy += Math.sign(toGY - cy);
+    path.push({ gx: cx, gy: cy });
+  }
+  return path;
+}
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
@@ -36,29 +52,45 @@ const ws      = new WebSocket(`${wsProto}//${location.host}/ws/${roomID}`);
 
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
+
   if (msg.type === "init") {
     myID = msg.id;
+
   } else if (msg.type === "state") {
-    state = msg;
-    // Seed visual positions for players appearing for the first time
-    // so they don't slide in from (0, 0).
-    for (const p of state.players) {
+    for (const p of msg.players) {
       if (!playerVisuals[p.id]) {
+        // First time we see this player — snap to exact position.
         playerVisuals[p.id] = {
-          px: p.gx * CELL + CELL / 2,
-          py: p.gy * CELL + CELL / 2,
+          px:        p.gx * CELL + CELL / 2,
+          py:        p.gy * CELL + CELL / 2,
+          gridX:     p.gx,
+          gridY:     p.gy,
+          waypoints: [],
         };
+      } else {
+        const v = playerVisuals[p.id];
+        if (v.gridX !== p.gx || v.gridY !== p.gy) {
+          // Grid position changed — build a new path from wherever the circle
+          // currently is (nearest cell) through intermediate cells to the target.
+          const fromGX = Math.round((v.px - CELL / 2) / CELL);
+          const fromGY = Math.round((v.py - CELL / 2) / CELL);
+          v.waypoints = computePath(fromGX, fromGY, p.gx, p.gy);
+          v.gridX = p.gx;
+          v.gridY = p.gy;
+        }
       }
     }
+    state = msg;
   }
 };
 
 ws.onclose = () => {
   ctx.fillStyle = "rgba(0,0,0,0.7)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#fff";
-  ctx.font      = "24px system-ui";
-  ctx.textAlign = "center";
+  ctx.fillStyle    = "#fff";
+  ctx.font         = "24px system-ui";
+  ctx.textAlign    = "center";
+  ctx.textBaseline = "middle";
   ctx.fillText("Disconnected", canvas.width / 2, canvas.height / 2);
 };
 
@@ -69,13 +101,11 @@ function sendMove(gx, gy) {
   ws.send(JSON.stringify({ gx, gy }));
 }
 
-// myPosition returns the local player's authoritative grid position.
-// Used for movement validation — NOT for rendering (use playerVisuals for that).
+// myPosition returns the authoritative grid pos — used for input, not rendering.
 function myPosition() {
   return state.players?.find(p => p.id === myID) ?? null;
 }
 
-// isReachable checks Euclidean distance, matching the server isValidMove.
 function isReachable(ox, oy, gx, gy) {
   if (ox === gx && oy === gy) return false;
   const dx = gx - ox;
@@ -86,7 +116,7 @@ function isReachable(ox, oy, gx, gy) {
 // ── Keyboard input ────────────────────────────────────────────────────────────
 
 let lastMoveAt = 0;
-const MOVE_COOLDOWN = 150; // ms — prevents key-hold spam
+const MOVE_COOLDOWN = 150;
 
 document.addEventListener("keydown", (e) => {
   const me = myPosition();
@@ -143,51 +173,50 @@ const modal      = document.getElementById("move-modal");
 const btnConfirm = document.getElementById("modal-confirm");
 const btnCancel  = document.getElementById("modal-cancel");
 
-function showModal() {
-  modal.classList.remove("hidden");
-  btnConfirm.focus();
-}
-
-function hideModal() {
-  modal.classList.add("hidden");
-  pending = null;
-}
+function showModal() { modal.classList.remove("hidden"); btnConfirm.focus(); }
+function hideModal() { modal.classList.add("hidden"); pending = null; }
 
 btnConfirm.addEventListener("click", () => {
   if (pending) sendMove(pending.gx, pending.gy);
   hideModal();
 });
-
 btnCancel.addEventListener("click", hideModal);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideModal(); });
 
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") hideModal();
-});
+// ── Visual update (path following) ───────────────────────────────────────────
 
-// ── Smooth interpolation ──────────────────────────────────────────────────────
-
-// updateVisuals advances each player's visual position toward their server grid position.
-// Called once per animation frame before drawing.
+// updateVisuals advances each player along their waypoint path at MOVE_SPEED px/frame.
+// When the head of the waypoint queue is reached the next waypoint is dequeued.
 function updateVisuals() {
   const activeIDs = new Set();
 
   for (const p of state.players || []) {
     activeIDs.add(p.id);
-
-    const targetPx = p.gx * CELL + CELL / 2;
-    const targetPy = p.gy * CELL + CELL / 2;
-
     const v = playerVisuals[p.id];
-    if (!v) continue; // seeded in ws.onmessage; shouldn't happen
+    if (!v) continue;
 
-    // Lerp toward target. Snap when very close to avoid infinite micro-movement.
-    const dx = targetPx - v.px;
-    const dy = targetPy - v.py;
-    v.px = Math.abs(dx) < 0.5 ? targetPx : v.px + dx * LERP;
-    v.py = Math.abs(dy) < 0.5 ? targetPy : v.py + dy * LERP;
+    // Next destination: first waypoint in the queue, or the final grid position.
+    const wp = v.waypoints.length > 0 ? v.waypoints[0] : { gx: v.gridX, gy: v.gridY };
+    const targetPx = wp.gx * CELL + CELL / 2;
+    const targetPy = wp.gy * CELL + CELL / 2;
+
+    const dx   = targetPx - v.px;
+    const dy   = targetPy - v.py;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist <= MOVE_SPEED) {
+      // Reached this waypoint — snap and advance.
+      v.px = targetPx;
+      v.py = targetPy;
+      if (v.waypoints.length > 0) v.waypoints.shift();
+    } else {
+      // Step toward the waypoint at constant speed.
+      v.px += (dx / dist) * MOVE_SPEED;
+      v.py += (dy / dist) * MOVE_SPEED;
+    }
   }
 
-  // Remove visuals for players who have left the room.
+  // Drop visuals for players who left.
   for (const id in playerVisuals) {
     if (!activeIDs.has(id)) delete playerVisuals[id];
   }
@@ -208,7 +237,6 @@ function draw() {
   if (hoverCell && me && isReachable(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
     drawCellHighlight(hoverCell.gx, hoverCell.gy, "rgba(255,255,255,0.10)");
   }
-
   if (pending) {
     drawCellHighlight(pending.gx, pending.gy, "rgba(74,144,217,0.30)");
   }
@@ -221,11 +249,9 @@ function draw() {
   requestAnimationFrame(draw);
 }
 
-// drawGrid renders the faint grid lines over the arena.
 function drawGrid() {
   ctx.strokeStyle = "#2a2a4a";
   ctx.lineWidth   = 0.5;
-
   for (let col = 0; col <= COLS; col++) {
     ctx.beginPath();
     ctx.moveTo(col * CELL, 0);
@@ -240,7 +266,6 @@ function drawGrid() {
   }
 }
 
-// drawReachableArea fills every cell within MOVE_RADIUS with a dim tint.
 function drawReachableArea(me) {
   ctx.fillStyle = "rgba(74,144,217,0.06)";
   for (let gy = 0; gy < ROWS; gy++) {
@@ -257,37 +282,30 @@ function drawCellHighlight(gx, gy, color) {
   ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
 }
 
-// drawPlayer renders a Ӿ circle at the given smooth pixel position (px, py).
-// px/py come from playerVisuals, not the raw grid position.
 function drawPlayer(player, px, py) {
   const r    = CELL / 2 - 2;
   const isMe = player.id === myID;
 
-  // Circle body
   ctx.beginPath();
   ctx.arc(px, py, r, 0, Math.PI * 2);
   ctx.fillStyle = player.color;
   ctx.fill();
 
-  // White outline ring for the local player
   if (isMe) {
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth   = 2.5;
     ctx.stroke();
   }
 
-  // Ӿ glyph
   ctx.fillStyle    = "#ffffff";
   ctx.font         = "bold 15px system-ui";
   ctx.textAlign    = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("Ӿ", px, py);
 
-  // Health bar above the circle
   drawHealthBar(px, py - r - 8, player.health);
 }
 
-// drawHealthBar renders a small bar above the player — green → amber → red.
 function drawHealthBar(cx, cy, health) {
   const w   = CELL - 4;
   const h   = 4;
@@ -296,7 +314,6 @@ function drawHealthBar(cx, cy, health) {
 
   ctx.fillStyle = "#222";
   ctx.fillRect(x, cy, w, h);
-
   ctx.fillStyle = pct > 0.5 ? "#52C07A" : pct > 0.25 ? "#F5A623" : "#E05252";
   ctx.fillRect(x, cy, w * pct, h);
 }
