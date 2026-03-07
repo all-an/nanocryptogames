@@ -15,6 +15,8 @@ type Hub struct {
 type RoomSummary struct {
 	ID          string `json:"id"`
 	PlayerCount int    `json:"playerCount"`
+	RedCount    int    `json:"redCount"`
+	BlueCount   int    `json:"blueCount"`
 }
 
 // NewHub creates an empty Hub ready for use.
@@ -29,7 +31,13 @@ func (h *Hub) ActiveRooms() []RoomSummary {
 
 	rooms := make([]RoomSummary, 0, len(h.rooms))
 	for _, r := range h.rooms {
-		rooms = append(rooms, RoomSummary{ID: r.ID, PlayerCount: r.currentPlayerCount()})
+		red, blue := r.teamCounts()
+		rooms = append(rooms, RoomSummary{
+			ID:          r.ID,
+			PlayerCount: red + blue,
+			RedCount:    red,
+			BlueCount:   blue,
+		})
 	}
 	return rooms
 }

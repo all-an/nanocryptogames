@@ -36,8 +36,14 @@
       <p class="modal-title">Choose your team</p>
       <p class="modal-sub" id="team-room-name"></p>
       <div class="team-buttons">
-        <button id="team-red" class="btn-team btn-team-red">Red</button>
-        <button id="team-blue" class="btn-team btn-team-blue">Blue</button>
+        <button id="team-red" class="btn-team btn-team-red">
+          <span class="team-btn-label">Red</span>
+          <span id="team-red-count" class="team-btn-count"></span>
+        </button>
+        <button id="team-blue" class="btn-team btn-team-blue">
+          <span class="team-btn-label">Blue</span>
+          <span id="team-blue-count" class="team-btn-count"></span>
+        </button>
       </div>
       <button id="team-cancel" class="btn-secondary" style="margin-top:8px;">Cancel</button>
     </div>
@@ -46,12 +52,19 @@
   <script>
     let pendingRoom = null;
 
-    // showTeamPicker is called before navigating to a room.
-    function showTeamPicker(roomID) {
+    // showTeamPicker opens the modal for a given room, with live team counts.
+    function showTeamPicker(roomID, redCount, blueCount) {
       pendingRoom = roomID;
       document.getElementById("team-room-name").textContent = roomID;
+      document.getElementById("team-red-count").textContent  = playerLabel(redCount);
+      document.getElementById("team-blue-count").textContent = playerLabel(blueCount);
       document.getElementById("team-modal").classList.remove("hidden");
       document.getElementById("team-red").focus();
+    }
+
+    function playerLabel(n) {
+      if (n === 0) return "empty";
+      return n === 1 ? "1 player" : `${n} players`;
     }
 
     function hideTeamPicker() {
@@ -69,12 +82,12 @@
     document.getElementById("team-cancel").addEventListener("click", hideTeamPicker);
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTeamPicker(); });
 
-    // Create form — intercept submit and show team picker instead of navigating directly.
+    // Create form — show team picker instead of navigating directly.
     document.getElementById("create-form").addEventListener("submit", (e) => {
       e.preventDefault();
       const roomName = document.getElementById("room-input").value.trim();
       if (!roomName) return;
-      showTeamPicker(roomName);
+      showTeamPicker(roomName, 0, 0);
     });
 
     // ── Room list ────────────────────────────────────────────────────────────
@@ -100,16 +113,25 @@
       list.innerHTML = rooms.map(r => `
         <li class="room-item">
           <span class="room-name">${escapeHtml(r.id)}</span>
-          <span class="room-players">${r.playerCount} player${r.playerCount === 1 ? "" : "s"}</span>
+          <span class="room-team-counts">
+            <span class="team-dot red-dot"></span>${r.redCount}
+            &nbsp;
+            <span class="team-dot blue-dot"></span>${r.blueCount}
+          </span>
           <div class="room-join-group">
-            <button class="room-join-btn btn-team-red-sm" onclick="showTeamPicker('${escapeJs(r.id)}')">Red</button>
-            <button class="room-join-btn btn-team-blue-sm" onclick="showTeamPicker('${escapeJs(r.id)}'); document.getElementById('team-blue').click()">Blue</button>
+            <button class="room-join-btn btn-team-red-sm"
+              onclick="showTeamPicker('${escapeJs(r.id)}', ${r.redCount}, ${r.blueCount}); document.getElementById('team-red').click()">
+              Join Red
+            </button>
+            <button class="room-join-btn btn-team-blue-sm"
+              onclick="showTeamPicker('${escapeJs(r.id)}', ${r.redCount}, ${r.blueCount}); document.getElementById('team-blue').click()">
+              Join Blue
+            </button>
           </div>
         </li>
       `).join("");
     }
 
-    // Prevent XSS from room names set by other users.
     function escapeHtml(str) {
       return str.replace(/[&<>"']/g, c => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"

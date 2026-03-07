@@ -141,6 +141,20 @@ func (r *Room) currentPlayerCount() int {
 	return len(r.players)
 }
 
+// teamCounts returns the number of red and blue players currently in the room.
+func (r *Room) teamCounts() (red, blue int) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, p := range r.players {
+		if p.Team == "red" {
+			red++
+		} else {
+			blue++
+		}
+	}
+	return
+}
+
 // applyInput dispatches to the correct handler based on the action type.
 func (r *Room) applyInput(input Input) {
 	switch input.Action {

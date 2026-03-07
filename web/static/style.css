@@ -124,6 +124,25 @@ body {
   white-space: nowrap;
 }
 
+.room-team-counts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: #aaa;
+  white-space: nowrap;
+}
+
+.team-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.red-dot  { background: #c0392b; }
+.blue-dot { background: #2471a3; }
+
 
 /* ── Game layout ── */
 
@@ -397,6 +416,11 @@ canvas {
   font-weight: 600;
   cursor: pointer;
   transition: filter 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 110px;
 }
 
 .btn-team:hover {
@@ -405,6 +429,17 @@ canvas {
 
 .btn-team-red  { background: #c0392b; color: #fff; }
 .btn-team-blue { background: #2471a3; color: #fff; }
+
+.team-btn-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.team-btn-count {
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
 
 /* Small team buttons in the room list */
 .room-join-group {
