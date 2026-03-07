@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const rpcTimeout = 10 * time.Second
+const rpcTimeout = 60 * time.Second
 
 // Config holds the primary and fallback Nano RPC node URLs.
 type Config struct {

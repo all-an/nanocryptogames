@@ -120,9 +120,14 @@ func (h *WSHandler) pollDeposits(ctx context.Context, p *game.Player) {
 // DB recording is skipped gracefully when no DB is connected.
 func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 	hashes, err := h.rpcClient.Receivable(ctx, p.NanoAddress)
-	if err != nil || len(hashes) == 0 {
+	if err != nil {
+		log.Printf("deposit: receivable query for %s: %v", p.NanoAddress, err)
 		return
 	}
+	if len(hashes) == 0 {
+		return
+	}
+	log.Printf("deposit: %d pending block(s) for %s", len(hashes), p.NanoAddress)
 
 	// Collect sender details for the DB audit trail (best-effort).
 	// BlockInfo failures are logged but do NOT block receiving — we always
@@ -147,10 +152,12 @@ func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 		log.Printf("deposit: derive wallet: %v", err)
 		return
 	}
+	log.Printf("deposit: calling ReceivePending for %s", p.NanoAddress)
 	if err := nano.ReceivePending(ctx, h.rpcClient, wallet); err != nil {
 		log.Printf("deposit: receive pending for %s: %v", p.NanoAddress, err)
 		return
 	}
+	log.Printf("deposit: ReceivePending succeeded for %s", p.NanoAddress)
 
 	// Push the real on-chain balance and enforce the 0.001 XNO session cap.
 	if info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address); err == nil {
@@ -307,7 +314,7 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Log the session start regardless of DB state (no-op when db is nil).
 	if h.db != nil {
-		if err := h.db.LogSession(r.Context(), p.DBID, p.NanoAddress, roomID, p.Team, r.RemoteAddr); err != nil {
+		if err := h.db.LogSession(r.Context(), p.DBID, p.NanoAddress, roomID, p.Team, r.RemoteAddr, p.Nickname); err != nil {
 			log.Printf("session_log: %v", err)
 		}
 	}
@@ -413,7 +420,7 @@ func (h *WSHandler) readPump(conn *websocket.Conn, p *game.Player, room *game.Ro
 
 		if raw.Action == "refresh_balance" {
 			go func() {
-				ctx2, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				ctx2, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 				defer cancel()
 				h.checkDeposits(ctx2, p)
 				h.pushBalance(ctx2, p)
