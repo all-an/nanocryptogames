@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -23,6 +24,23 @@ func main() {
 	// Load .env if present (dev convenience). Real env vars always take precedence.
 	if err := godotenv.Load(); err == nil {
 		log.Println("loaded .env")
+	}
+
+	// ── File logging ──────────────────────────────────────────────────────────
+	// All log output goes to both stdout and a log file so every event is
+	// captured on disk and readable even after the terminal session ends.
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+	logPath := os.Getenv("LOG_FILE")
+	if logPath == "" {
+		logPath = "server.log"
+	}
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Printf("warning: could not open log file %s: %v — logging to stdout only", logPath, err)
+	} else {
+		defer logFile.Close()
+		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+		log.Printf("logging to file: %s", logPath)
 	}
 
 	addr := os.Getenv("ADDR")
@@ -65,11 +83,11 @@ func main() {
 	// ── Nano RPC client ───────────────────────────────────────────────────────
 	primaryURL := os.Getenv("NANO_RPC_PRIMARY_URL")
 	if primaryURL == "" {
-		primaryURL = "https://nanoslo.0x.no"
+		primaryURL = "https://rpc.nano.to"
 	}
 	fallbackURL := os.Getenv("NANO_RPC_FALLBACK_URL")
 	if fallbackURL == "" {
-		fallbackURL = "https://node.somenano.com"
+		fallbackURL = "https://rpc.nano.to"
 	}
 	rpcClient := nano.NewClient(nano.Config{
 		PrimaryURL:  primaryURL,

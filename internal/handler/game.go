@@ -72,16 +72,21 @@ func (h *WSHandler) pushBalance(ctx context.Context, p *game.Player) {
 	}
 	wallet, err := nano.DeriveWallet(h.masterSeed, p.SeedIndex)
 	if err != nil {
+		log.Printf("pushBalance [%s]: derive wallet: %v", p.NanoAddress, err)
 		return
 	}
+	log.Printf("pushBalance [%s]: querying on-chain balance", p.NanoAddress)
 	info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address)
 	if err != nil {
+		log.Printf("pushBalance [%s]: account not opened yet (balance=0): %v", p.NanoAddress, err)
 		return // account not yet opened — balance is genuinely zero
 	}
 	bal, ok := new(big.Int).SetString(info.Balance, 10)
 	if !ok {
+		log.Printf("pushBalance [%s]: invalid balance string %q", p.NanoAddress, info.Balance)
 		return
 	}
+	log.Printf("pushBalance [%s]: balance=%s raw (%s XNO)", p.NanoAddress, info.Balance, game.FormatXNO(bal))
 	b, _ := json.Marshal(map[string]string{
 		"type": "balance",
 		"xno":  game.FormatXNO(bal),
@@ -90,26 +95,31 @@ func (h *WSHandler) pushBalance(ctx context.Context, p *game.Player) {
 	p.Send(b)
 }
 
-// pollDeposits checks for incoming Nano to the player's session address every 30 seconds.
+// pollDeposits checks for incoming Nano to the player's session address every 10 seconds.
 // Receiving pending blocks and DB recording require a DB connection, but balance display
 // works even without one.
 // The loop exits when ctx is cancelled (i.e. the player's WebSocket closes).
 func (h *WSHandler) pollDeposits(ctx context.Context, p *game.Player) {
 	if h.rpcClient == nil || p.NanoAddress == "" {
+		log.Printf("pollDeposits [%s]: rpcClient or address not set, skipping", p.ID)
 		return
 	}
 
-	// Check immediately on connect, then every 30 seconds.
+	log.Printf("pollDeposits [%s]: starting for address %s", p.ID, p.NanoAddress)
+
+	// Check immediately on connect, then every 10 seconds.
 	h.checkDeposits(ctx, p)
 
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("pollDeposits [%s]: context cancelled, stopping poll loop", p.NanoAddress)
 			return
 		case <-ticker.C:
+			log.Printf("pollDeposits [%s]: tick — checking for deposits", p.NanoAddress)
 			h.checkDeposits(ctx, p)
 		}
 	}
@@ -119,15 +129,17 @@ func (h *WSHandler) pollDeposits(ctx context.Context, p *game.Player) {
 // on-chain, updates the player's balance display, and records each deposit in the DB.
 // DB recording is skipped gracefully when no DB is connected.
 func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
+	log.Printf("checkDeposits [%s]: querying receivable blocks", p.NanoAddress)
 	hashes, err := h.rpcClient.Receivable(ctx, p.NanoAddress)
 	if err != nil {
-		log.Printf("deposit: receivable query for %s: %v", p.NanoAddress, err)
+		log.Printf("checkDeposits [%s]: receivable query error: %v", p.NanoAddress, err)
 		return
 	}
 	if len(hashes) == 0 {
+		log.Printf("checkDeposits [%s]: no pending blocks", p.NanoAddress)
 		return
 	}
-	log.Printf("deposit: %d pending block(s) for %s", len(hashes), p.NanoAddress)
+	log.Printf("checkDeposits [%s]: %d pending block(s) found", p.NanoAddress, len(hashes))
 
 	// Collect sender details for the DB audit trail (best-effort).
 	// BlockInfo failures are logged but do NOT block receiving — we always
@@ -138,42 +150,50 @@ func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 	}
 	blocks := make([]pending, 0, len(hashes))
 	for _, hash := range hashes {
+		log.Printf("checkDeposits [%s]: fetching block_info for %s", p.NanoAddress, hash[:8])
 		details, err := h.rpcClient.BlockInfo(ctx, hash)
 		if err != nil {
-			log.Printf("deposit: block_info %s: %v (will still receive)", hash[:8], err)
+			log.Printf("checkDeposits [%s]: block_info %s error: %v (will still receive)", p.NanoAddress, hash[:8], err)
 			continue
 		}
+		log.Printf("checkDeposits [%s]: block %s — amount=%s raw from %s", p.NanoAddress, hash[:8], details.Amount, details.Account)
 		blocks = append(blocks, pending{hash: hash, details: details})
 	}
 
 	// Receive all pending blocks on-chain in one pass.
+	log.Printf("checkDeposits [%s]: deriving wallet (seed index %d)", p.NanoAddress, p.SeedIndex)
 	wallet, err := nano.DeriveWallet(h.masterSeed, p.SeedIndex)
 	if err != nil {
-		log.Printf("deposit: derive wallet: %v", err)
+		log.Printf("checkDeposits [%s]: derive wallet: %v", p.NanoAddress, err)
 		return
 	}
-	log.Printf("deposit: calling ReceivePending for %s", p.NanoAddress)
+	log.Printf("checkDeposits [%s]: calling ReceivePending", p.NanoAddress)
 	if err := nano.ReceivePending(ctx, h.rpcClient, wallet); err != nil {
-		log.Printf("deposit: receive pending for %s: %v", p.NanoAddress, err)
+		log.Printf("checkDeposits [%s]: ReceivePending error: %v", p.NanoAddress, err)
 		return
 	}
-	log.Printf("deposit: ReceivePending succeeded for %s", p.NanoAddress)
+	log.Printf("checkDeposits [%s]: ReceivePending succeeded", p.NanoAddress)
 
 	// Push the real on-chain balance and enforce the 0.001 XNO session cap.
-	if info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address); err == nil {
+	info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address)
+	if err != nil {
+		log.Printf("checkDeposits [%s]: GetAccountInfo after receive: %v", p.NanoAddress, err)
+	} else {
 		bal, ok := new(big.Int).SetString(info.Balance, 10)
 		if ok {
+			log.Printf("checkDeposits [%s]: post-receive balance=%s raw (%s XNO)", p.NanoAddress, info.Balance, game.FormatXNO(bal))
 			// 0.001 XNO = 10^27 raw
 			maxRaw, _ := new(big.Int).SetString("1000000000000000000000000000", 10)
 			if bal.Cmp(maxRaw) > 0 {
 				excess := new(big.Int).Sub(bal, maxRaw)
+				log.Printf("checkDeposits [%s]: balance exceeds cap — returning %s raw excess", p.NanoAddress, excess)
 				// Return excess to the most recent sender.
 				if len(blocks) > 0 {
 					senderAddr := blocks[len(blocks)-1].details.Account
 					if _, sendErr := nano.Send(ctx, h.rpcClient, wallet, senderAddr, excess.String()); sendErr != nil {
-						log.Printf("deposit cap: return excess to %s: %v", senderAddr, sendErr)
+						log.Printf("checkDeposits [%s]: cap return to %s failed: %v", p.NanoAddress, senderAddr, sendErr)
 					} else {
-						log.Printf("deposit cap: returned %s raw excess to %s", excess, senderAddr)
+						log.Printf("checkDeposits [%s]: returned %s raw excess to %s", p.NanoAddress, excess, senderAddr)
 						bal.Set(maxRaw)
 						info.Balance = maxRaw.String()
 					}
@@ -185,19 +205,21 @@ func (h *WSHandler) checkDeposits(ctx context.Context, p *game.Player) {
 				"raw":  info.Balance,
 			})
 			p.Send(b)
+			log.Printf("checkDeposits [%s]: sent balance update to player (%s XNO)", p.NanoAddress, game.FormatXNO(bal))
 		}
 	}
 
 	// Record each deposit in the DB with its sender address.
 	for _, b := range blocks {
 		if p.SessionID == "" {
+			log.Printf("checkDeposits [%s]: no session ID, skipping DB record for block %s", p.NanoAddress, b.hash[:8])
 			continue // DB not connected, skip recording
 		}
 		if err := h.db.RecordDeposit(ctx, p.SessionID, b.details.Account, b.details.Amount, b.hash); err != nil {
-			log.Printf("deposit: record %s: %v", b.hash[:8], err)
+			log.Printf("checkDeposits [%s]: DB record for block %s failed: %v", p.NanoAddress, b.hash[:8], err)
 			continue
 		}
-		log.Printf("deposit: player %s received %s raw from %s (block %s)",
+		log.Printf("checkDeposits [%s]: recorded deposit — %s raw from %s (block %s)",
 			p.NanoAddress, b.details.Amount, b.details.Account, b.hash[:8])
 	}
 }
@@ -332,18 +354,31 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 	p.Send(initMsg)
 
+	// Create a dedicated context for background goroutines tied to this WebSocket session.
+	// We use context.Background() as the parent so that after the WebSocket upgrade
+	// the goroutines are not affected by ambiguities in r.Context() lifetime.
+	wsCtx, wsCancel := context.WithCancel(context.Background())
+
 	// Push the current on-chain balance immediately so the sidebar never shows
 	// stale zero even when the player reconnects with an existing balance.
-	go h.pushBalance(r.Context(), p)
+	go h.pushBalance(wsCtx, p)
 
 	// Poll for incoming Nano deposits in the background.
-	// The goroutine exits automatically when the WebSocket closes (ctx cancelled).
-	go h.pollDeposits(r.Context(), p)
+	// The goroutine exits when wsCancel is called after the WebSocket closes.
+	go h.pollDeposits(wsCtx, p)
 
 	go writePump(conn, p)
 	h.readPump(conn, p, room)
 
+	log.Printf("ws [%s]: WebSocket closed, stopping background goroutines", p.NanoAddress)
+	wsCancel() // Stop background polling goroutines.
+
 	h.hub.LeaveRoom(p)
+
+	// Auto-return any remaining session balance to the original deposit sender.
+	// Runs in a goroutine so p.Close() is not blocked on network I/O.
+	go h.autoReturnFunds(p)
+
 	p.Close()
 }
 
@@ -516,6 +551,69 @@ func (h *WSHandler) processWithdraw(ctx context.Context, p *game.Player) {
 		"blockHash": hash,
 	})
 	p.Send(b)
+}
+
+// autoReturnFunds is called when a player's WebSocket closes.
+// It first receives any pending blocks that arrived just before disconnect, then
+// sends the full session balance back to the original deposit sender so funds are
+// never stranded in an inaccessible temporary wallet.
+// Runs in a goroutine; uses an independent context so it is not affected by
+// the session context being cancelled on disconnect.
+func (h *WSHandler) autoReturnFunds(p *game.Player) {
+	if h.db == nil || h.rpcClient == nil || p.NanoAddress == "" || p.SessionID == "" {
+		log.Printf("auto-return [%s]: skipping (db=%v rpc=%v addr=%q session=%q)",
+			p.ID, h.db != nil, h.rpcClient != nil, p.NanoAddress, p.SessionID)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	wallet, err := nano.DeriveWallet(h.masterSeed, p.SeedIndex)
+	if err != nil {
+		log.Printf("auto-return [%s]: derive wallet: %v", p.NanoAddress, err)
+		return
+	}
+
+	// Receive any blocks that arrived just before the WebSocket closed.
+	log.Printf("auto-return [%s]: checking for pending blocks before return", p.NanoAddress)
+	if err := nano.ReceivePending(ctx, h.rpcClient, wallet); err != nil {
+		log.Printf("auto-return [%s]: receive pending: %v (continuing anyway)", p.NanoAddress, err)
+	} else {
+		log.Printf("auto-return [%s]: ReceivePending completed", p.NanoAddress)
+	}
+
+	info, err := h.rpcClient.GetAccountInfo(ctx, wallet.Address)
+	if err != nil {
+		log.Printf("auto-return [%s]: account not opened — nothing to return", p.NanoAddress)
+		return
+	}
+	balance, ok := new(big.Int).SetString(info.Balance, 10)
+	if !ok || balance.Sign() <= 0 {
+		log.Printf("auto-return [%s]: balance is zero — nothing to return", p.NanoAddress)
+		return
+	}
+	log.Printf("auto-return [%s]: balance to return = %s raw (%s XNO)", p.NanoAddress, info.Balance, game.FormatXNO(balance))
+
+	fromAddr, err := h.db.GetDepositSender(ctx, p.SessionID)
+	if err != nil {
+		log.Printf("auto-return [%s]: no deposit sender on record for session %s: %v — funds remain in wallet (recoverable via master seed)",
+			p.NanoAddress, p.SessionID, err)
+		return
+	}
+	log.Printf("auto-return [%s]: returning %s XNO to original sender %s", p.NanoAddress, game.FormatXNO(balance), fromAddr)
+
+	hash, err := nano.Send(ctx, h.rpcClient, wallet, fromAddr, info.Balance)
+	if err != nil {
+		log.Printf("auto-return [%s]: send to %s failed: %v", p.NanoAddress, fromAddr, err)
+		return
+	}
+	log.Printf("auto-return [%s]: returned %s XNO to %s on disconnect, block %s",
+		p.NanoAddress, game.FormatXNO(balance), fromAddr, hash[:8])
+
+	if err := h.db.RecordTransaction(ctx, p.SessionID, "withdrawal", info.Balance, hash); err != nil {
+		log.Printf("auto-return [%s]: record transaction: %v", p.NanoAddress, err)
+	}
 }
 
 // writePump reads from the player's message channel and writes to the WebSocket.

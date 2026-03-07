@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -152,5 +153,20 @@ func TestGenerateWork_success(t *testing.T) {
 	}
 	if work != "abc123def456" {
 		t.Errorf("expected work abc123def456, got %s", work)
+	}
+}
+
+func TestGenerateWork_numericError(t *testing.T) {
+	// Some nodes return numeric error codes when they are overloaded or for certain auth failures.
+	srv := mockNode(t, map[string]any{"error": 403, "message": "Access Denied"})
+	defer srv.Close()
+
+	client := NewClient(Config{PrimaryURL: srv.URL})
+	_, err := client.GenerateWork(context.Background(), "SOMEHASH")
+	if err == nil {
+		t.Fatal("expected error, but got nil")
+	}
+	if !strings.Contains(err.Error(), "403") {
+		t.Errorf("expected error message to contain '403', got: %v", err)
 	}
 }

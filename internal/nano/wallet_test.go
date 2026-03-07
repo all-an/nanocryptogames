@@ -14,23 +14,24 @@ var knownSeed = []byte{
 }
 
 func TestDeriveKeypair_deterministicOutput(t *testing.T) {
-	pub1, priv1, err := DeriveKeypair(knownSeed, 0)
+	pub1, key1, err := DeriveKeypair(knownSeed, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	pub2, priv2, _ := DeriveKeypair(knownSeed, 0)
+	pub2, key2, _ := DeriveKeypair(knownSeed, 0)
 
 	if string(pub1) != string(pub2) {
 		t.Error("public key must be deterministic for same seed+index")
 	}
-	if string(priv1) != string(priv2) {
-		t.Error("private key must be deterministic for same seed+index")
+	if string(key1) != string(key2) {
+		t.Error("expanded key must be deterministic for same seed+index")
 	}
 }
 
 func TestDeriveKeypair_differentIndexProducesDifferentKeys(t *testing.T) {
 	pub0, _, _ := DeriveKeypair(knownSeed, 0)
 	pub1, _, _ := DeriveKeypair(knownSeed, 1)
+
 
 	if string(pub0) == string(pub1) {
 		t.Error("different indices must produce different public keys")

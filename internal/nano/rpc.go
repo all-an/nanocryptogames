@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -52,7 +53,7 @@ func (c *Client) GetBalance(ctx context.Context, address string) (*AccountBalanc
 	var r struct {
 		Balance string `json:"balance"`
 		Pending string `json:"pending"`
-		Error   string `json:"error"`
+		Error   rpcErrorField `json:"error"`
 	}
 	if err := c.call(ctx, map[string]string{
 		"action":  "account_balance",
@@ -73,7 +74,7 @@ func (c *Client) GetAccountInfo(ctx context.Context, address string) (*AccountIn
 		Frontier       string `json:"frontier"`
 		Balance        string `json:"balance"`
 		Representative string `json:"representative"`
-		Error          string `json:"error"`
+		Error          rpcErrorField `json:"error"`
 	}
 	if err := c.call(ctx, map[string]string{
 		"action":  "account_info",
@@ -92,10 +93,13 @@ func (c *Client) GetAccountInfo(ctx context.Context, address string) (*AccountIn
 }
 
 // Receivable returns the hashes of unconfirmed incoming blocks for an address.
+// Handles both response formats that different nodes use:
+//   - map format: {"blocks": {"hash": "amount", ...}}
+//   - array format: {"blocks": ["hash1", "hash2", ...]}
 func (c *Client) Receivable(ctx context.Context, address string) ([]string, error) {
 	var r struct {
 		Blocks any    `json:"blocks"`
-		Error  string `json:"error"`
+		Error  rpcErrorField `json:"error"`
 	}
 	if err := c.call(ctx, map[string]any{
 		"action":  "receivable",
@@ -108,16 +112,27 @@ func (c *Client) Receivable(ctx context.Context, address string) ([]string, erro
 		return nil, fmt.Errorf("rpc receivable: %s", r.Error)
 	}
 
-	// blocks is "" when empty or a map[hash]amount when non-empty.
-	m, ok := r.Blocks.(map[string]any)
-	if !ok {
+	switch v := r.Blocks.(type) {
+	case map[string]any:
+		// Map format: {"hash": "amount", ...}
+		hashes := make([]string, 0, len(v))
+		for hash := range v {
+			hashes = append(hashes, hash)
+		}
+		return hashes, nil
+	case []any:
+		// Array format: ["hash1", "hash2", ...]
+		hashes := make([]string, 0, len(v))
+		for _, h := range v {
+			if s, ok := h.(string); ok {
+				hashes = append(hashes, s)
+			}
+		}
+		return hashes, nil
+	default:
+		// Empty string or unexpected type — no pending blocks.
 		return nil, nil
 	}
-	hashes := make([]string, 0, len(m))
-	for hash := range m {
-		hashes = append(hashes, hash)
-	}
-	return hashes, nil
 }
 
 // BlockDetails holds the amount and sender account for a Nano block.
@@ -132,7 +147,7 @@ func (c *Client) BlockInfo(ctx context.Context, blockHash string) (*BlockDetails
 	var r struct {
 		Amount  string `json:"amount"`
 		Account string `json:"block_account"`
-		Error   string `json:"error"`
+		Error   rpcErrorField `json:"error"`
 	}
 	if err := c.call(ctx, map[string]string{
 		"action": "block_info",
@@ -150,7 +165,7 @@ func (c *Client) BlockInfo(ctx context.Context, blockHash string) (*BlockDetails
 func (c *Client) GenerateWork(ctx context.Context, hash string) (string, error) {
 	var r struct {
 		Work  string `json:"work"`
-		Error string `json:"error"`
+		Error rpcErrorField `json:"error"`
 	}
 	if err := c.call(ctx, map[string]string{
 		"action": "work_generate",
@@ -170,7 +185,7 @@ func (c *Client) GenerateWork(ctx context.Context, hash string) (string, error) 
 func (c *Client) ProcessBlock(ctx context.Context, subtype string, block map[string]string) (string, error) {
 	var r struct {
 		Hash  string `json:"hash"`
-		Error string `json:"error"`
+		Error rpcErrorField `json:"error"`
 	}
 	if err := c.call(ctx, map[string]any{
 		"action":     "process",
@@ -193,18 +208,44 @@ func (c *Client) call(ctx context.Context, payload any, dst any) error {
 		return fmt.Errorf("marshal: %w", err)
 	}
 
-	raw, primaryErr := c.post(ctx, c.cfg.PrimaryURL, body)
-	if primaryErr != nil {
-		if c.cfg.FallbackURL == "" {
-			return primaryErr
-		}
-		raw, err = c.post(ctx, c.cfg.FallbackURL, body)
-		if err != nil {
-			return fmt.Errorf("primary: %w; fallback: %w", primaryErr, err)
+	var raw []byte
+	var lastErr error
+
+	// Try primary, then fallback.
+	urls := []string{c.cfg.PrimaryURL}
+	if c.cfg.FallbackURL != "" && c.cfg.FallbackURL != c.cfg.PrimaryURL {
+		urls = append(urls, c.cfg.FallbackURL)
+	}
+
+	for _, url := range urls {
+		for attempt := 0; attempt < 3; attempt++ {
+			raw, lastErr = c.post(ctx, url, body)
+			if lastErr == nil {
+				// Success at transport level. Now verify it's JSON.
+				if len(raw) > 0 && raw[0] == '<' {
+					lastErr = fmt.Errorf("node returned HTML instead of JSON")
+					continue // Try next attempt/url
+				}
+				if err := json.Unmarshal(raw, dst); err != nil {
+					lastErr = fmt.Errorf("unmarshal: %w", err)
+					continue // Try next attempt/url
+				}
+				return nil // Success!
+			}
+
+			// If it's a rate limit (429) or server error (5xx), wait and retry.
+			if strings.Contains(lastErr.Error(), "429") || strings.Contains(lastErr.Error(), "5") {
+				delay := time.Duration(attempt+1) * time.Second
+				log.Printf("RPC [%s] attempt %d failed: %v — retrying in %v", url, attempt+1, lastErr, delay)
+				time.Sleep(delay)
+				continue
+			}
+			// For other errors (DNS, timeout), try next URL immediately.
+			break
 		}
 	}
 
-	return json.Unmarshal(raw, dst)
+	return fmt.Errorf("all nodes failed: %w", lastErr)
 }
 
 // post sends a JSON POST to url and returns the raw response body.
@@ -225,4 +266,20 @@ func (c *Client) post(ctx context.Context, url string, body []byte) ([]byte, err
 		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
 	}
 	return io.ReadAll(resp.Body)
+}
+
+// rpcErrorField handles Nano node responses where the "error" field might be a string or a number.
+type rpcErrorField string
+
+func (e *rpcErrorField) UnmarshalJSON(b []byte) error {
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	if v == nil {
+		*e = ""
+		return nil
+	}
+	*e = rpcErrorField(fmt.Sprintf("%v", v))
+	return nil
 }

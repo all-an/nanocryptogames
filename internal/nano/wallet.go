@@ -3,35 +3,102 @@
 package nano
 
 import (
-	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
 	"strings"
 
+	"filippo.io/edwards25519"
 	"golang.org/x/crypto/blake2b"
 )
 
 // nanoAlphabet is Nano's base32 character set (excludes 0, 2, l, v to avoid ambiguity).
 const nanoAlphabet = "13456789abcdefghijkmnopqrstuwxyz"
 
-// DeriveKeypair derives an ed25519 key pair from a master seed and player index.
+// Wallet holds the key material for a single derived HD account.
+// The scalar and noncePfx are derived from Blake2b-512(accountKey), matching
+// Nano's ed25519 variant. Use sign() to produce on-chain-valid signatures.
+type Wallet struct {
+	Address   string
+	PublicKey []byte // 32-byte ed25519 public key (curve point)
+	scalar    *edwards25519.Scalar
+	noncePfx  []byte // 32 bytes, upper half of Blake2b-512(accountKey)
+}
+
+// sign produces a Nano-compatible signature for the given message.
+func (w *Wallet) sign(message []byte) ([]byte, error) {
+	return nanoSign(w.scalar, w.noncePfx, w.PublicKey, message)
+}
+
+// DeriveKeypair derives a Nano key pair from a master seed and player index.
 // Account key = Blake2b-256(seed || uint32_be(index)).
-func DeriveKeypair(seed []byte, index uint32) (pubKey ed25519.PublicKey, privKey ed25519.PrivateKey, err error) {
-	h, err := blake2b.New256(nil)
+// The returned expandedKey is the 64-byte Blake2b-512 expansion of the account key
+// (scalar material + nonce prefix); it is deterministic and suitable for comparison.
+func DeriveKeypair(seed []byte, index uint32) (pubKey []byte, expandedKey []byte, err error) {
+	accountKey, err := deriveAccountKey(seed, index)
 	if err != nil {
-		return nil, nil, fmt.Errorf("blake2b init: %w", err)
+		return nil, nil, err
 	}
 
+	scalar, noncePfx, err := nanoExpandKey(accountKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Public key = scalar * BasePoint
+	pub := new(edwards25519.Point).ScalarBaseMult(scalar).Bytes()
+
+	expanded := make([]byte, 64)
+	copy(expanded[:32], scalar.Bytes())
+	copy(expanded[32:], noncePfx)
+	return pub, expanded, nil
+}
+
+// DeriveWallet returns a Wallet for the given master seed and player index.
+func DeriveWallet(seed []byte, index uint32) (*Wallet, error) {
+	accountKey, err := deriveAccountKey(seed, index)
+	if err != nil {
+		return nil, err
+	}
+
+	scalar, noncePfx, err := nanoExpandKey(accountKey)
+	if err != nil {
+		return nil, err
+	}
+
+	pub := new(edwards25519.Point).ScalarBaseMult(scalar).Bytes()
+	addr, err := AddressFromPublicKey(pub)
+	if err != nil {
+		return nil, err
+	}
+	return &Wallet{
+		Address:   addr,
+		PublicKey: pub,
+		scalar:    scalar,
+		noncePfx:  noncePfx,
+	}, nil
+}
+
+// DeriveAddress is the combined helper used throughout the application.
+// It returns the nano_ address for the given master seed and player index.
+func DeriveAddress(seed []byte, index uint32) (string, error) {
+	pub, _, err := DeriveKeypair(seed, index)
+	if err != nil {
+		return "", err
+	}
+	return AddressFromPublicKey(pub)
+}
+
+// deriveAccountKey computes Blake2b-256(seed || uint32_be(index)).
+func deriveAccountKey(seed []byte, index uint32) ([]byte, error) {
+	h, err := blake2b.New256(nil)
+	if err != nil {
+		return nil, fmt.Errorf("blake2b init: %w", err)
+	}
 	idx := make([]byte, 4)
 	binary.BigEndian.PutUint32(idx, index)
 	h.Write(seed)
 	h.Write(idx)
-	accountKey := h.Sum(nil)
-
-	// ed25519 uses the account key as its seed.
-	privKey = ed25519.NewKeyFromSeed(accountKey)
-	pubKey = privKey.Public().(ed25519.PublicKey)
-	return pubKey, privKey, nil
+	return h.Sum(nil), nil
 }
 
 // AddressFromPublicKey encodes a 32-byte ed25519 public key as a nano_ address.
@@ -60,25 +127,22 @@ func AddressFromPublicKey(pubKey []byte) (string, error) {
 	return "nano_" + keyEncoded + checksumEncoded, nil
 }
 
-// DeriveAddress is the combined helper used throughout the application.
-// It returns the nano_ address for the given master seed and player index.
-func DeriveAddress(seed []byte, index uint32) (string, error) {
-	pubKey, _, err := DeriveKeypair(seed, index)
-	if err != nil {
-		return "", err
-	}
-	return AddressFromPublicKey(pubKey)
-}
-
 // PublicKeyFromAddress extracts the 32-byte ed25519 public key from a nano_ address.
 // It is the inverse of AddressFromPublicKey and is used to build send block link fields.
+// Both the current "nano_" prefix and the legacy "xrb_" prefix are accepted —
+// they are identical encodings and some RPC nodes still return xrb_ addresses.
 func PublicKeyFromAddress(address string) ([]byte, error) {
-	if !strings.HasPrefix(address, "nano_") {
-		return nil, fmt.Errorf("address must start with nano_")
+	var body string
+	switch {
+	case strings.HasPrefix(address, "nano_"):
+		body = strings.TrimPrefix(address, "nano_")
+	case strings.HasPrefix(address, "xrb_"):
+		body = strings.TrimPrefix(address, "xrb_")
+	default:
+		return nil, fmt.Errorf("address must start with nano_ or xrb_")
 	}
-	body := strings.TrimPrefix(address, "nano_")
 	if len(body) != 60 {
-		return nil, fmt.Errorf("invalid address: expected 60 chars after nano_, got %d", len(body))
+		return nil, fmt.Errorf("invalid address: expected 60 chars after prefix, got %d", len(body))
 	}
 	// First 52 chars encode the 256-bit public key with 4 leading padding bits.
 	return nanoBase32Decode(body[:52], 4)

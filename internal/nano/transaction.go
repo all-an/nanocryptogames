@@ -4,7 +4,6 @@ package nano
 
 import (
 	"context"
-	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -15,30 +14,10 @@ import (
 
 // DefaultRepresentative is used when opening new accounts.
 // Points to a well-known, reliable representative (Nano Foundation).
-const DefaultRepresentative = "nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3"
+const DefaultRepresentative = "nano_34obsap837tmek9cr8jx4ikybw4h6j891mnuoantctb8gtjm6d1nk8beosq8"
 
 // stateBlockPreamble is the 32-byte preamble for Nano state blocks (31 × 0x00 + 0x06).
 var stateBlockPreamble = append(make([]byte, 31), 0x06)
-
-// Wallet holds the key material for a single derived HD account.
-type Wallet struct {
-	Address    string
-	PublicKey  ed25519.PublicKey
-	PrivateKey ed25519.PrivateKey
-}
-
-// DeriveWallet returns a Wallet for the given master seed and player index.
-func DeriveWallet(seed []byte, index uint32) (*Wallet, error) {
-	pub, priv, err := DeriveKeypair(seed, index)
-	if err != nil {
-		return nil, err
-	}
-	addr, err := AddressFromPublicKey(pub)
-	if err != nil {
-		return nil, err
-	}
-	return &Wallet{Address: addr, PublicKey: pub, PrivateKey: priv}, nil
-}
 
 // Send creates, signs, and submits a state block to transfer amountRaw (in raw units)
 // from wallet to toAddress. Returns the confirmed block hash.
@@ -76,7 +55,10 @@ func Send(ctx context.Context, rpc *Client, wallet *Wallet, toAddress, amountRaw
 	if err != nil {
 		return "", err
 	}
-	sig := ed25519.Sign(wallet.PrivateKey, blockHash)
+	sig, err := wallet.sign(blockHash)
+	if err != nil {
+		return "", fmt.Errorf("sign: %w", err)
+	}
 
 	return rpc.ProcessBlock(ctx, "send", map[string]string{
 		"type":           "state",
@@ -171,7 +153,10 @@ func receiveBlock(ctx context.Context, rpc *Client, wallet *Wallet, info *Accoun
 	if err != nil {
 		return err
 	}
-	sig := ed25519.Sign(wallet.PrivateKey, blockHash)
+	sig, err := wallet.sign(blockHash)
+	if err != nil {
+		return fmt.Errorf("sign: %w", err)
+	}
 
 	_, err = rpc.ProcessBlock(ctx, "receive", map[string]string{
 		"type":           "state",
