@@ -839,3 +839,14 @@ canvas {
   display: flex;
   justify-content: center;
 }
+
+.welcome-card-warning {
+  font-size: 0.78rem;
+  color: #c0392b;
+  background: rgba(192,57,43,0.08);
+  border: 1px solid rgba(192,57,43,0.25);
+  border-radius: 6px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
