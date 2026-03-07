@@ -14,6 +14,7 @@ import (
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
 	"github.com/allanabrahao/nanomultiplayer/internal/game"
 	"github.com/allanabrahao/nanomultiplayer/internal/handler"
+	"github.com/allanabrahao/nanomultiplayer/internal/nano"
 )
 
 func main() {
@@ -45,12 +46,36 @@ func main() {
 	// ── Nano master seed ─────────────────────────────────────────────────────
 	masterSeed := loadMasterSeed()
 
+	// ── Nano RPC client ───────────────────────────────────────────────────────
+	primaryURL := os.Getenv("NANO_RPC_PRIMARY_URL")
+	if primaryURL == "" {
+		primaryURL = "https://nanoslo.0x.no"
+	}
+	fallbackURL := os.Getenv("NANO_RPC_FALLBACK_URL")
+	if fallbackURL == "" {
+		fallbackURL = "https://node.somenano.com"
+	}
+	rpcClient := nano.NewClient(nano.Config{
+		PrimaryURL:  primaryURL,
+		FallbackURL: fallbackURL,
+	})
+
+	if addr := os.Getenv("DONATION_ADDRESS"); addr != "" {
+		log.Printf("donation address: %s", addr)
+	} else {
+		log.Println("DONATION_ADDRESS not set — first-shot donations disabled")
+	}
+
 	// ── Templates ────────────────────────────────────────────────────────────
-	// Path is relative to the working directory (project root when running go run ./cmd/server).
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
 
-	// ── Hub ───────────────────────────────────────────────────────────────────
+	// ── Hub + WS handler ─────────────────────────────────────────────────────
 	hub := game.NewHub()
+	wsHandler := handler.NewWSHandler(hub, database, masterSeed, rpcClient)
+
+	// Register the first-shot donation callback on the hub.
+	// It fires asynchronously the first time each player shoots, once per session.
+	hub.SetOnFirstShot(wsHandler.FireDonation)
 
 	// ── Routes ───────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
@@ -66,7 +91,7 @@ func main() {
 
 	mux.Handle("GET /api/rooms", handler.NewRoomsHandler(hub))
 
-	mux.Handle("GET /ws/{roomID}", handler.NewWSHandler(hub, database, masterSeed))
+	mux.Handle("GET /ws/{roomID}", wsHandler)
 
 	log.Printf("listening on %s", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
@@ -86,7 +111,6 @@ func loadMasterSeed() []byte {
 		return seed
 	}
 
-	// Generate a temporary seed for local development.
 	seed := make([]byte, 32)
 	if _, err := rand.Read(seed); err != nil {
 		log.Fatalf("generate dev seed: %v", err)

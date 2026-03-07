@@ -7,8 +7,17 @@ import "sync"
 // Hub manages the set of live rooms.
 // All room creation and teardown is serialised through the Hub mutex.
 type Hub struct {
-	mu    sync.Mutex
-	rooms map[string]*Room
+	mu          sync.Mutex
+	rooms       map[string]*Room
+	onFirstShot func(*Player) // forwarded to each new room on creation
+}
+
+// SetOnFirstShot registers a callback that fires (in a goroutine) the first time
+// each player fires a shot. Call this once at startup before any player connects.
+func (h *Hub) SetOnFirstShot(fn func(*Player)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.onFirstShot = fn
 }
 
 // RoomSummary is a lightweight snapshot of a room used for the lobby listing.
@@ -51,6 +60,7 @@ func (h *Hub) JoinRoom(roomID string, p *Player) *Room {
 	r, ok := h.rooms[roomID]
 	if !ok {
 		r = NewRoom(roomID)
+		r.onFirstShot = h.onFirstShot
 		h.rooms[roomID] = r
 		go r.Run()
 	}

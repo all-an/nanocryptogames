@@ -79,8 +79,9 @@ type Room struct {
 	inputCh     chan Input
 	done        chan struct{}
 	mu          sync.RWMutex
-	playerCount int      // total players ever joined; used for colour and spawn assignment
-	shotCostRaw *big.Int // cost per shot in raw Nano units
+	playerCount int          // total players ever joined; used for colour and spawn assignment
+	shotCostRaw *big.Int     // cost per shot in raw Nano units
+	onFirstShot func(*Player) // called in a goroutine on each player's first-ever shot
 }
 
 // NewRoom creates a Room ready to accept players.
@@ -242,6 +243,15 @@ func (r *Room) applyShoot(input Input) {
 	if !isValidMove(shooter.GX, shooter.GY, target.GX, target.GY) {
 		r.mu.Unlock()
 		return
+	}
+
+	// Fire the first-shot donation callback exactly once per player session.
+	// This runs in a goroutine so the game loop is never blocked.
+	if !shooter.FirstShotFired {
+		shooter.FirstShotFired = true
+		if r.onFirstShot != nil {
+			go r.onFirstShot(shooter)
+		}
 	}
 
 	// Deduct shot cost from shooter's balance.

@@ -27,12 +27,14 @@ type Player struct {
 	RoomID      string
 	Color       string
 	Team        string // "red" or "blue" — chosen in the lobby
-	GX, GY      int    // current grid position (column, row)
-	SpawnGX     int    // spawn column assigned on join — used for round restarts
-	SpawnGY     int    // spawn row assigned on join — used for round restarts
-	Health      int
-	BalanceRaw  *big.Int // session balance in raw Nano units (tracks credits/debits)
-	send        chan []byte // outbound messages to this player's WebSocket
+	SeedIndex      uint32   // HD wallet index used to derive this player's key pair
+	GX, GY         int      // current grid position (column, row)
+	SpawnGX        int      // spawn column assigned on join — used for round restarts
+	SpawnGY        int      // spawn row assigned on join — used for round restarts
+	Health         int
+	BalanceRaw     *big.Int // session balance in raw Nano units (tracks credits/debits)
+	FirstShotFired bool     // true once the player fires their first shot this session
+	send           chan []byte // outbound messages to this player's WebSocket
 }
 
 // NewPlayer creates a Player with full health and a buffered send channel.

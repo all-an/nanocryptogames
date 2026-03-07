@@ -9,6 +9,8 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
 	"github.com/allanabrahao/nanomultiplayer/internal/game"
@@ -48,13 +50,47 @@ func (h *GamePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // db and masterSeed are optional — when nil/empty the game runs without persistence.
 type WSHandler struct {
 	hub        *game.Hub
-	db         *db.DB // nil when DATABASE_URL is not configured
-	masterSeed []byte // used for Nano HD wallet derivation
+	db         *db.DB       // nil when DATABASE_URL is not configured
+	masterSeed []byte       // used for Nano HD wallet derivation
+	rpcClient  *nano.Client // used for the first-shot donation send
 }
 
-// NewWSHandler wires up the hub and optional DB/seed dependencies.
-func NewWSHandler(hub *game.Hub, database *db.DB, masterSeed []byte) *WSHandler {
-	return &WSHandler{hub: hub, db: database, masterSeed: masterSeed}
+// NewWSHandler wires up the hub, optional DB/seed dependencies, and the Nano RPC client.
+func NewWSHandler(hub *game.Hub, database *db.DB, masterSeed []byte, rpc *nano.Client) *WSHandler {
+	return &WSHandler{hub: hub, db: database, masterSeed: masterSeed, rpcClient: rpc}
+}
+
+// FireDonation is the first-shot callback registered with the Hub.
+// It is called in a goroutine by the room on each player's very first shot.
+// DONATION_ADDRESS env var must be set to a valid nano_ address for donations to fire.
+func (h *WSHandler) FireDonation(p *game.Player) {
+	donationAddr := os.Getenv("DONATION_ADDRESS")
+	if donationAddr == "" {
+		log.Println("donation: DONATION_ADDRESS not set — skipping first-shot donation")
+		return
+	}
+
+	wallet, err := nano.DeriveWallet(h.masterSeed, p.SeedIndex)
+	if err != nil {
+		log.Printf("donation: derive wallet index=%d: %v", p.SeedIndex, err)
+		return
+	}
+
+	// Default donation: 0.001 XNO = 10^27 raw. Override with DONATION_AMOUNT_RAW.
+	amountRaw := os.Getenv("DONATION_AMOUNT_RAW")
+	if amountRaw == "" {
+		amountRaw = "1000000000000000000000000000"
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	hash, err := nano.Send(ctx, h.rpcClient, wallet, donationAddr, amountRaw)
+	if err != nil {
+		log.Printf("donation: send failed from player %s: %v", p.NanoAddress, err)
+		return
+	}
+	log.Printf("donation: sent from %s → %s, block %s", p.NanoAddress, donationAddr, hash)
 }
 
 func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -114,8 +150,9 @@ func (h *WSHandler) persistPlayer(ctx context.Context, p *game.Player) {
 		log.Printf("wallet: next seed index: %v", err)
 		return
 	}
+	p.SeedIndex = uint32(seedIndex)
 
-	address, err := nano.DeriveAddress(h.masterSeed, uint32(seedIndex))
+	address, err := nano.DeriveAddress(h.masterSeed, p.SeedIndex)
 	if err != nil {
 		log.Printf("wallet: derive address index=%d: %v", seedIndex, err)
 		return
@@ -143,11 +180,11 @@ func (h *WSHandler) persistPlayer(ctx context.Context, p *game.Player) {
 func (h *WSHandler) deriveAddressOnly(p *game.Player) {
 	var buf [4]byte
 	rand.Read(buf[:])
-	index := uint32(buf[0])<<24 | uint32(buf[1])<<16 | uint32(buf[2])<<8 | uint32(buf[3])
+	p.SeedIndex = uint32(buf[0])<<24 | uint32(buf[1])<<16 | uint32(buf[2])<<8 | uint32(buf[3])
 
-	address, err := nano.DeriveAddress(h.masterSeed, index)
+	address, err := nano.DeriveAddress(h.masterSeed, p.SeedIndex)
 	if err != nil {
-		log.Printf("wallet: derive address index=%d: %v", index, err)
+		log.Printf("wallet: derive address index=%d: %v", p.SeedIndex, err)
 		return
 	}
 	p.NanoAddress = address
