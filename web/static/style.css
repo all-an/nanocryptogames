@@ -1203,6 +1203,32 @@ canvas {
   font-size: 1.05rem;
 }
 
+.welcome-tip {
+  margin-top: 14px;
+  font-size: 0.95rem;
+  color: #ffe066;
+  background: linear-gradient(135deg, #1a1200 0%, #2e2000 50%, #1a1200 100%);
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  padding: 10px 22px;
+  display: inline-block;
+  position: relative;
+  box-shadow:
+    0 0 8px 2px #c8900044,
+    0 0 18px 4px #a0600022,
+    inset 0 1px 0 #ffe06622;
+  background-clip: padding-box;
+  outline: 1.5px solid #c89000;
+  outline-offset: 2px;
+  letter-spacing: 0.01em;
+  animation: tip-glow 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes tip-glow {
+  from { box-shadow: 0 0 6px 2px #c8900033, 0 0 14px 3px #a0600018, inset 0 1px 0 #ffe06622; }
+  to   { box-shadow: 0 0 14px 5px #c89000aa, 0 0 28px 8px #ffd70044, inset 0 1px 0 #ffe06655; }
+}
+
 .welcome-play-btn {
   display: inline-block;
   margin-top: 8px;
