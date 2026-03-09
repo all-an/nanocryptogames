@@ -46,12 +46,17 @@ func Send(ctx context.Context, rpc *Client, wallet *Wallet, toAddress, amountRaw
 		return "", fmt.Errorf("destination address: %w", err)
 	}
 
+	rep := info.Representative
+	if rep == "" {
+		rep = DefaultRepresentative
+	}
+
 	work, err := rpc.GenerateWork(ctx, info.Frontier)
 	if err != nil {
 		return "", fmt.Errorf("work: %w", err)
 	}
 
-	blockHash, err := stateBlockHash(wallet.PublicKey, info.Frontier, info.Representative, newBalance, destPub)
+	blockHash, err := stateBlockHash(wallet.PublicKey, info.Frontier, rep, newBalance, destPub)
 	if err != nil {
 		return "", err
 	}
@@ -64,7 +69,7 @@ func Send(ctx context.Context, rpc *Client, wallet *Wallet, toAddress, amountRaw
 		"type":           "state",
 		"account":        wallet.Address,
 		"previous":       info.Frontier,
-		"representative": info.Representative,
+		"representative": rep,
 		"balance":        newBalance.String(),
 		"link":           hex.EncodeToString(destPub),
 		"signature":      strings.ToUpper(hex.EncodeToString(sig)),
@@ -119,6 +124,9 @@ func receiveBlock(ctx context.Context, rpc *Client, wallet *Wallet, info *Accoun
 		frontier = info.Frontier
 		currentBalance, _ = new(big.Int).SetString(info.Balance, 10)
 		representative = info.Representative
+		if representative == "" {
+			representative = DefaultRepresentative
+		}
 	}
 
 	details, err := rpc.BlockInfo(ctx, pendingHash)

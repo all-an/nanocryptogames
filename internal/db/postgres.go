@@ -172,6 +172,55 @@ func (db *DB) Setting(ctx context.Context, key string) (string, error) {
 	return value, err
 }
 
+// RecordFaucetPayout inserts an audit row for a faucet reward that was sent on-chain.
+func (db *DB) RecordFaucetPayout(ctx context.Context, reason, toAddress, ip, amount, blockHash string) error {
+	_, err := db.pool.Exec(ctx,
+		`INSERT INTO faucet_payouts (reason, to_address, ip, amount, block_hash)
+		 VALUES ($1, $2, NULLIF($3,''), $4, NULLIF($5,''))`,
+		reason, toAddress, ip, amount, blockHash,
+	)
+	return err
+}
+
+// FaucetPayoutsToday counts how many faucet payouts have been made to a given IP
+// since midnight UTC today. Used to enforce the daily per-IP payout limit.
+func (db *DB) FaucetPayoutsToday(ctx context.Context, ip string) (int, error) {
+	var count int
+	err := db.pool.QueryRow(ctx,
+		`SELECT count(*) FROM faucet_payouts
+		 WHERE ip = $1 AND paid_at >= CURRENT_DATE`,
+		ip,
+	).Scan(&count)
+	return count, err
+}
+
+// LogAccess inserts a row into access_log and increments the access_daily counter.
+// Returns the new row's ID so the caller can later fill in the country.
+func (db *DB) LogAccess(ctx context.Context, ip, path string) (int64, error) {
+	var id int64
+	err := db.pool.QueryRow(ctx,
+		`INSERT INTO access_log (ip, path) VALUES ($1, $2) RETURNING id`,
+		ip, path,
+	).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	_, err = db.pool.Exec(ctx,
+		`INSERT INTO access_daily (day, count) VALUES (CURRENT_DATE, 1)
+		 ON CONFLICT (day) DO UPDATE SET count = access_daily.count + 1`,
+	)
+	return id, err
+}
+
+// SetAccessCountry fills in the country for an existing access_log row.
+func (db *DB) SetAccessCountry(ctx context.Context, id int64, country string) error {
+	_, err := db.pool.Exec(ctx,
+		`UPDATE access_log SET country = $2 WHERE id = $1`,
+		id, country,
+	)
+	return err
+}
+
 // SetSetting upserts a key/value pair in the settings table.
 func (db *DB) SetSetting(ctx context.Context, key, value string) error {
 	_, err := db.pool.Exec(ctx,

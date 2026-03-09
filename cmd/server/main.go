@@ -6,11 +6,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"html/template"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
 	"github.com/allanabrahao/nanomultiplayer/internal/game"
@@ -41,6 +45,16 @@ func main() {
 		defer logFile.Close()
 		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
 		log.Printf("logging to file: %s", logPath)
+	}
+
+	// each_run_session.log is truncated on every start so it only contains the
+	// current run's output — useful for quick inspection without sifting through history.
+	sessionLogFile, err := os.OpenFile("each_run_session.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Printf("warning: could not open each_run_session.log: %v", err)
+	} else {
+		defer sessionLogFile.Close()
+		log.SetOutput(io.MultiWriter(os.Stdout, logFile, sessionLogFile))
 	}
 
 	addr := os.Getenv("ADDR")
@@ -92,14 +106,36 @@ func main() {
 	rpcClient := nano.NewClient(nano.Config{
 		PrimaryURL:  primaryURL,
 		FallbackURL: fallbackURL,
+		APIKey:      os.Getenv("NANO_RPC_API_KEY"),
 	})
 
 	// ── Templates ────────────────────────────────────────────────────────────
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
 
-	// ── Hub + WS handler ─────────────────────────────────────────────────────
+	// ── Hub + WS handler (paid game) ─────────────────────────────────────────
 	hub := game.NewHub()
 	wsHandler := handler.NewWSHandler(hub, database, masterSeed, rpcClient)
+
+	// ── Faucet hub + wallet ───────────────────────────────────────────────────
+	faucetHub := game.NewFaucetHub()
+	var faucetWallet *nano.Wallet
+	var faucetAddr string
+	if faucetSeedHex := os.Getenv("FAUCET_SEED"); faucetSeedHex != "" {
+		faucetSeed, err := hex.DecodeString(faucetSeedHex)
+		if err != nil || len(faucetSeed) != 32 {
+			log.Fatalf("FAUCET_SEED must be 64 hex characters (32 bytes)")
+		}
+		w, err := nano.DeriveWallet(faucetSeed, 0)
+		if err != nil {
+			log.Fatalf("faucet wallet derivation: %v", err)
+		}
+		faucetWallet = w
+		faucetAddr = w.Address
+		log.Printf("faucet wallet: %s", faucetAddr)
+	} else {
+		log.Println("FAUCET_SEED not set — faucet rewards disabled")
+	}
+	faucetWSHandler := handler.NewFaucetWSHandler(faucetHub, database, rpcClient, faucetWallet)
 
 	// ── Routes ───────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
@@ -107,7 +143,8 @@ func main() {
 	mux.Handle("GET /static/",
 		http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
-	mux.Handle("GET /", handler.NewHomeHandler(tmpl))
+	mux.Handle("GET /", handler.NewLandingHandler(tmpl, database))
+	mux.Handle("GET /welcome", handler.NewWelcomeHandler(tmpl))
 	mux.Handle("GET /lobby", handler.NewLobbyHandler(tmpl))
 
 	gamePage := handler.NewGamePageHandler(tmpl)
@@ -118,8 +155,25 @@ func main() {
 
 	mux.Handle("GET /ws/{roomID}", wsHandler)
 
+	// ── Faucet routes ─────────────────────────────────────────────────────────
+	faucetGamePage := handler.NewFaucetGamePageHandler(tmpl, faucetAddr)
+	mux.Handle("GET /faucet", handler.NewFaucetWelcomeHandler(tmpl, faucetAddr))
+	mux.Handle("GET /faucet/lobby", handler.NewFaucetLobbyHandler(tmpl))
+	mux.Handle("GET /faucet/game", faucetGamePage)
+	mux.Handle("GET /faucet/game/{roomID}", faucetGamePage)
+	mux.Handle("GET /faucet/api/rooms", handler.NewRoomsHandler(faucetHub))
+	mux.Handle("GET /faucet/ws/{roomID}", faucetWSHandler)
+
+	rpcTestHandler := handler.NewRPCTestHandler(tmpl, database, rpcClient, masterSeed)
+	mux.Handle("GET /rpc-test", rpcTestHandler)
+	mux.Handle("GET /rpc-test/balance", rpcTestHandler)
+	mux.Handle("POST /rpc-test/receive", rpcTestHandler)
+	mux.Handle("POST /rpc-test/withdraw", rpcTestHandler)
+
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, closedMiddleware(database, tmpl, mux)); err != nil {
+	chain := closedMiddleware(database, tmpl, mux)
+	chain = accessLogMiddleware(database, chain)
+	if err := http.ListenAndServe(addr, chain); err != nil {
 		log.Fatalf("server: %v", err)
 	}
 }
@@ -150,6 +204,74 @@ func closedMiddleware(database *db.DB, tmpl *template.Template, next http.Handle
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// accessLogMiddleware records every non-static request in access_log and
+// increments the access_daily counter. Country lookup runs in a goroutine so
+// it never slows down the response.
+func accessLogMiddleware(database *db.DB, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if database != nil && !strings.HasPrefix(r.URL.Path, "/static/") {
+			ip := realIP(r)
+			id, err := database.LogAccess(r.Context(), ip, r.URL.Path)
+			if err != nil {
+				log.Printf("access_log insert: %v", err)
+			} else {
+				go func() {
+					country := geoCountry(ip)
+					if country == "" {
+						return
+					}
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					if err := database.SetAccessCountry(ctx, id, country); err != nil {
+						log.Printf("access_log country update: %v", err)
+					}
+				}()
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// realIP extracts the client IP from common proxy headers, falling back to
+// RemoteAddr. Takes the first address in X-Forwarded-For when multiple are present.
+func realIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := strings.Index(xff, ","); i != -1 {
+			return strings.TrimSpace(xff[:i])
+		}
+		return strings.TrimSpace(xff)
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return strings.TrimSpace(xri)
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// geoCountry calls the ip-api.com free endpoint to resolve an IP to a country name.
+// Returns an empty string on any failure so the caller can skip the update.
+func geoCountry(ip string) string {
+	if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+		return "local"
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://ip-api.com/json/" + ip + "?fields=country") //nolint:noctx
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Country string `json:"country"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return ""
+	}
+	return result.Country
 }
 
 // loadMasterSeed reads NANO_MASTER_SEED from the environment (hex-encoded 32 bytes).

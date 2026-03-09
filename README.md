@@ -1,4 +1,4 @@
-# Nano Multiplayer
+# Nano Faucet Multiplayer
 
 A real-money multiplayer browser game powered by Go and Nano (XNO) cryptocurrency.
 
@@ -34,9 +34,10 @@ docker stop nano-multiplayer-db
 docker rm nano-multiplayer-db
 ```
 
-### 3. Run the server
+### 3. Build and run the server
 
 ```bash
+go build ./...
 go run ./cmd/server
 ```
 

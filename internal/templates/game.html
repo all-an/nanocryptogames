@@ -3,48 +3,21 @@
 <head>
   <meta charset="utf-8">
   <title>Ӿ {{.RoomID}}</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=3">
+  <script src="/static/game.js?v=3" defer></script>
 </head>
 <body>
   <div class="game-layout">
-
-    <!-- Left sidebar: deposit panel -->
-    <aside class="deposit-panel">
-      <button id="donate-trigger" class="donate-trigger">
-        <span class="donate-trigger-icon">Ӿ</span>
-        <span class="donate-trigger-text">
-          <span class="donate-trigger-title">Support the developer</span>
-          <span class="donate-trigger-sub">Send any portion of your balance as a donation — on-chain, instant.</span>
-        </span>
-      </button>
-
-      <h2 class="deposit-title">Ӿ Session Balance</h2>
-
-      <div id="deposit-waiting" class="deposit-waiting">
-        <p>Connecting…</p>
-      </div>
-
-      <div id="deposit-ready" class="hidden">
-        <div class="deposit-balance-row">
-          <span class="deposit-balance-label">Balance</span>
-          <span id="deposit-balance" class="deposit-balance">0.000000 XNO</span>
-          <button id="refresh-balance-btn" class="refresh-btn" title="Refresh balance">↻</button>
-        </div>
-
-        <button id="add-funds-btn" class="add-funds-btn">+ Add Funds</button>
-
-        <hr class="deposit-divider">
-
-        <button id="withdraw-btn" class="withdraw-btn">Withdraw</button>
-        <p id="withdraw-status" class="withdraw-status hidden"></p>
-      </div>
-    </aside>
 
     <!-- Main game area -->
     <div class="game-wrap">
       <div class="game-header">
         <span class="room-label">Room: <strong>{{.RoomID}}</strong></span>
-        <a href="/lobby" class="leave">Leave</a>
+        <div class="game-header-actions">
+          <button id="wallet-btn" class="wallet-header-btn hidden">Ӿ Wallet</button>
+          <button id="donate-trigger" class="donate-header-btn hidden">Ӿ Donate</button>
+          <a href="/lobby" class="leave">Leave</a>
+        </div>
       </div>
 
       <!-- data-room is read by game.js to build the WebSocket URL -->
@@ -85,34 +58,45 @@
     </div>
   </div>
 
-  <!-- Add Funds modal -->
-  <div id="funds-modal" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="funds-modal-box">
-      <p class="funds-modal-title">Add Funds</p>
+  <!-- Wallet modal — balance, add funds, withdraw -->
+  <div id="wallet-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="wallet-modal-box">
 
-      <div class="funds-limit-banner">
-        <span class="funds-limit-icon">⚠</span>
-        <span>Maximum <strong>0.001 XNO</strong> per session.<br>Do not send more — excess is returned automatically.</span>
+      <div class="wallet-modal-header">
+        <h2 class="wallet-modal-title">Ӿ Wallet</h2>
+        <button id="wallet-close-btn" class="wallet-close-btn" title="Close">✕</button>
       </div>
 
-      <p class="funds-modal-label">Send Nano to your session address:</p>
-
-      <div class="funds-address-wrap">
-        <span id="funds-address" class="funds-address"></span>
-        <button id="funds-copy-btn" class="copy-btn" title="Copy address">⧉</button>
+      <!-- Balance -->
+      <div class="wallet-card">
+        <div class="wallet-card-label">Session Balance</div>
+        <div class="wallet-balance-row">
+          <span id="wallet-balance" class="wallet-balance-value">0.000000 XNO</span>
+          <button id="refresh-balance-btn" class="wallet-refresh-btn" title="Refresh balance">↻</button>
+        </div>
       </div>
-      <p id="funds-copy-confirm" class="copy-confirm hidden">Copied!</p>
 
-      <a id="funds-nault-link" class="qr-link" href="#" target="_blank" rel="noopener">
-        Open in Nault web wallet ↗
-      </a>
+      <!-- Add Funds -->
+      <div class="wallet-card">
+        <div class="wallet-card-label">Add Funds</div>
+        <p class="wallet-card-hint">Send Nano to your session address. Max <strong>0.001 XNO</strong> — excess returned automatically.</p>
+        <div class="wallet-address-box" id="wallet-address"></div>
+        <div class="wallet-address-actions">
+          <button id="wallet-copy-btn" class="wallet-btn wallet-btn--secondary">⧉ Copy Address</button>
+          <a id="wallet-nault-link" class="wallet-btn wallet-btn--secondary" href="#" target="_blank" rel="noopener">Open in Nault ↗</a>
+        </div>
+        <p id="wallet-copy-confirm" class="wallet-copy-confirm hidden">Copied!</p>
+        <p class="wallet-cost-hint">Each shot costs <strong>0.0001 XNO</strong> · Suggested: <strong>0.0002 – 0.001 XNO</strong></p>
+      </div>
 
-      <p class="funds-hint">
-        Each shot costs <strong>0.0001 XNO</strong>.<br>
-        Suggested deposit: <strong>0.0002 – 0.001 XNO</strong>.
-      </p>
+      <!-- Withdraw -->
+      <div class="wallet-card">
+        <div class="wallet-card-label">Withdraw</div>
+        <p class="wallet-card-hint">Sends your full balance back to the address that deposited.</p>
+        <button id="withdraw-btn" class="wallet-btn wallet-btn--withdraw">Withdraw Full Balance</button>
+        <p id="withdraw-status" class="wallet-status hidden"></p>
+      </div>
 
-      <button id="funds-close-btn" class="btn-secondary funds-close-btn">Close</button>
     </div>
   </div>
 
@@ -146,6 +130,5 @@
     </div>
   </div>
 
-  <script src="/static/game.js"></script>
 </body>
 </html>

@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Nano Faucet Multiplayer</title>
+  <title>Faucet Multiplayer — Lobby</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="lobby">
-    <h1>Ӿ Nano Faucet Multiplayer</h1>
-    <p class="subtitle">Join an existing room or create a new one</p>
+    <h1>🚰 Faucet Multiplayer</h1>
+    <p class="subtitle">Join a room and earn free Nano for kills &amp; heals</p>
 
     <form class="lobby-form" id="create-form">
       <input
@@ -30,7 +30,7 @@
     </div>
   </div>
 
-  <!-- Team picker modal — shown before entering any room -->
+  <!-- Team picker modal — includes nano address input for receiving rewards -->
   <div id="team-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-box">
       <p class="modal-title">Join Room</p>
@@ -42,6 +42,14 @@
         placeholder="Your nickname (optional)"
         maxlength="12"
         autocomplete="off"
+      >
+      <input
+        type="text"
+        id="address-input"
+        class="nick-input"
+        placeholder="Your Nano address (for rewards)"
+        autocomplete="off"
+        style="margin-top:6px;font-size:0.78rem;"
       >
       <p class="modal-sub" style="margin-top:4px;">Choose your team</p>
       <div class="team-buttons">
@@ -61,7 +69,6 @@
   <script>
     let pendingRoom = null;
 
-    // showTeamPicker opens the modal for a given room, with live team counts.
     function showTeamPicker(roomID, redCount, blueCount, preselect) {
       pendingRoom = roomID;
       document.getElementById("team-room-name").textContent = roomID;
@@ -83,15 +90,18 @@
     function hideTeamPicker() {
       pendingRoom = null;
       document.getElementById("nick-input").value = "";
+      document.getElementById("address-input").value = "";
       document.getElementById("team-modal").classList.add("hidden");
     }
 
     function joinWithTeam(team) {
       if (!pendingRoom) return;
-      const nick = document.getElementById("nick-input").value.trim().slice(0, 12);
-      const params = new URLSearchParams({ team });
-      if (nick) params.set("nick", nick);
-      window.location.href = `/game/${encodeURIComponent(pendingRoom)}?${params}`;
+      const nick    = document.getElementById("nick-input").value.trim().slice(0, 12);
+      const address = document.getElementById("address-input").value.trim();
+      const params  = new URLSearchParams({ team });
+      if (nick)    params.set("nick", nick);
+      if (address) params.set("address", address);
+      window.location.href = `/faucet/game/${encodeURIComponent(pendingRoom)}?${params}`;
     }
 
     document.getElementById("team-red").addEventListener("click",  () => joinWithTeam("red"));
@@ -99,7 +109,6 @@
     document.getElementById("team-cancel").addEventListener("click", hideTeamPicker);
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTeamPicker(); });
 
-    // Create form — show team picker instead of navigating directly.
     document.getElementById("create-form").addEventListener("submit", (e) => {
       e.preventDefault();
       const roomName = document.getElementById("room-input").value.trim();
@@ -107,26 +116,22 @@
       showTeamPicker(roomName, 0, 0);
     });
 
-    // ── Room list ────────────────────────────────────────────────────────────
+    // ── Room list ─────────────────────────────────────────────────────────────
 
     async function loadRooms() {
       try {
-        const res = await fetch("/api/rooms");
+        const res   = await fetch("/faucet/api/rooms");
         const rooms = await res.json();
         renderRooms(rooms);
-      } catch {
-        // Silently ignore network errors between polls.
-      }
+      } catch { /* ignore poll errors */ }
     }
 
     function renderRooms(rooms) {
       const list = document.getElementById("room-list");
-
       if (!rooms || rooms.length === 0) {
         list.innerHTML = '<li class="room-list-empty">No rooms open yet — create one above</li>';
         return;
       }
-
       list.innerHTML = rooms.map(r => `
         <li class="room-item">
           <span class="room-name">${escapeHtml(r.id)}</span>
@@ -150,9 +155,7 @@
     }
 
     function escapeHtml(str) {
-      return str.replace(/[&<>"']/g, c => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-      }[c]));
+      return str.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     }
 
     function escapeJs(str) {

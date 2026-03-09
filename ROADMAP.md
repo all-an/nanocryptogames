@@ -1,4 +1,4 @@
-# Nano Multiplayer Game — Roadmap
+# Nano Faucet Multiplayer Game — Roadmap
 
 ## Project Overview
 

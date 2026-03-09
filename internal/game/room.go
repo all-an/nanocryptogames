@@ -14,6 +14,9 @@ const tickRate = 50 * time.Millisecond // 20 TPS — used for state broadcast he
 // This value is used when the DB is not connected; it can be overridden via SetShotCost.
 var defaultShotCostRaw, _ = new(big.Int).SetString("100000000000000000000000000", 10)
 
+// faucetRewardXNO is the human-readable faucet reward amount shown in round-over messages.
+const faucetRewardXNO = "0.00001"
+
 // spawnPoints are fixed grid positions spread across the arena.
 var spawnPoints = [][2]int{
 	{1, 1}, {23, 1}, {12, 8},
@@ -77,18 +80,22 @@ type worldState struct {
 // Room represents one active game session with its own goroutine and tick loop.
 type Room struct {
 	ID          string
+	Mode        string // "paid" (default) or "faucet"
 	players     map[string]*Player
 	inputCh     chan Input
 	done        chan struct{}
 	mu          sync.RWMutex
-	playerCount int      // total players ever joined; used for colour and spawn assignment
-	shotCostRaw *big.Int // cost per shot in raw Nano units
+	playerCount int      // total players ever joined; used for spawn assignment
+	redCount    int      // red-team players ever joined; used for colour assignment
+	blueCount   int      // blue-team players ever joined; used for colour assignment
+	shotCostRaw *big.Int // cost per shot in raw Nano units (unused in faucet mode)
 }
 
-// NewRoom creates a Room ready to accept players.
-func NewRoom(id string) *Room {
+// NewRoom creates a Room ready to accept players in the given mode ("paid" or "faucet").
+func NewRoom(id, mode string) *Room {
 	return &Room{
 		ID:          id,
+		Mode:        mode,
 		players:     make(map[string]*Player),
 		inputCh:     make(chan Input, 256),
 		done:        make(chan struct{}),
@@ -123,12 +130,20 @@ func (r *Room) Run() {
 	}
 }
 
-// Join adds a player to the room, assigning their colour and spawn position.
+// Join adds a player to the room, assigning their team colour and spawn position.
+// Red-team players receive warm colours; blue-team players receive cool colours.
 func (r *Room) Join(p *Player) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	p.Color = colorPalette[r.playerCount%len(colorPalette)]
+	if p.Team == "red" {
+		p.Color = redColorPalette[r.redCount%len(redColorPalette)]
+		r.redCount++
+	} else {
+		p.Color = blueColorPalette[r.blueCount%len(blueColorPalette)]
+		r.blueCount++
+	}
+
 	spawn := spawnPoints[r.playerCount%len(spawnPoints)]
 	p.GX, p.GY = spawn[0], spawn[1]
 	p.SpawnGX, p.SpawnGY = spawn[0], spawn[1]
@@ -246,9 +261,12 @@ func (r *Room) applyShoot(input Input) {
 		return
 	}
 
-	// Deduct shot cost from shooter's balance.
-	shooter.BalanceRaw.Sub(shooter.BalanceRaw, r.shotCostRaw)
-	shooterBalanceXNO := shooter.BalanceXNO()
+	// In paid mode: deduct shot cost. In faucet mode: shots are free.
+	var shooterBalanceXNO string
+	if r.Mode != "faucet" {
+		shooter.BalanceRaw.Sub(shooter.BalanceRaw, r.shotCostRaw)
+		shooterBalanceXNO = shooter.BalanceXNO()
+	}
 
 	target.Health -= 50
 	isKill := target.Health == 0
@@ -263,14 +281,28 @@ func (r *Room) applyShoot(input Input) {
 		p.Send(evt)
 	}
 
-	// On a kill: award the prize (3 × shot_cost = 2 refund + 1 bonus) and
+	// On a kill: award prize (paid) or signal faucet payout (faucet), then
 	// broadcast the round-over event. The round restarts after 3 seconds.
 	var prizeXNO string
 	if isKill {
-		prize := new(big.Int).Mul(r.shotCostRaw, big.NewInt(3))
-		shooter.BalanceRaw.Add(shooter.BalanceRaw, prize)
-		shooterBalanceXNO = shooter.BalanceXNO() // refresh after prize
-		prizeXNO = FormatXNO(r.shotCostRaw)       // prize = 1 × shot_cost net gain
+		if r.Mode != "faucet" {
+			prize := new(big.Int).Mul(r.shotCostRaw, big.NewInt(3))
+			shooter.BalanceRaw.Add(shooter.BalanceRaw, prize)
+			shooterBalanceXNO = shooter.BalanceXNO()
+			prizeXNO = FormatXNO(r.shotCostRaw) // net gain = 1 × shot_cost
+		} else {
+			prizeXNO = faucetRewardXNO
+			// Signal the WS handler to send the real faucet payout.
+			// Guard: only pay when killer and victim come from different IPs
+			// so a player cannot farm rewards by killing their own alt tabs.
+			sameIP := shooter.RemoteAddr != "" && shooter.RemoteAddr == target.RemoteAddr
+			if shooter.FaucetRewardCh != nil && !sameIP {
+				select {
+				case shooter.FaucetRewardCh <- "kill":
+				default:
+				}
+			}
+		}
 
 		roundOver, _ := json.Marshal(roundOverEvent{
 			Type:     "roundover",
@@ -284,9 +316,11 @@ func (r *Room) applyShoot(input Input) {
 
 	r.mu.Unlock()
 
-	// Send updated balance privately to the shooter.
-	balMsg, _ := json.Marshal(balanceEvent{Type: "balance", XNO: shooterBalanceXNO, Raw: shooter.BalanceRaw.String()})
-	shooter.Send(balMsg)
+	// Send updated balance privately to the shooter (paid mode only).
+	if r.Mode != "faucet" {
+		balMsg, _ := json.Marshal(balanceEvent{Type: "balance", XNO: shooterBalanceXNO, Raw: shooter.BalanceRaw.String()})
+		shooter.Send(balMsg)
+	}
 
 	// After a kill, restart the round after a 3-second grace period.
 	if isKill {
@@ -327,6 +361,14 @@ func (r *Room) applyHelp(input Input) {
 	}
 
 	target.Health = 100
+
+	// In faucet mode, signal the WS handler to send a heal reward to the helper.
+	if r.Mode == "faucet" && helper.FaucetRewardCh != nil {
+		select {
+		case helper.FaucetRewardCh <- "heal":
+		default:
+		}
+	}
 
 	// Notify all players so they can show a visual cue.
 	evt, _ := json.Marshal(helpEvent{

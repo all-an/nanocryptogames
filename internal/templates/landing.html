@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Nano Faucet Multiplayer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="welcome">
+    <header class="welcome-header">
+      <h1 class="welcome-title">Ӿ Nano Faucet Multiplayer</h1>
+      <p class="welcome-tagline">A grid shooter powered by Nano (XNO) — choose your mode</p>
+    </header>
+
+    <div class="welcome-cards">
+
+      <div class="welcome-card mode-card mode-card--faucet">
+        <div class="welcome-card-icon">🚰</div>
+        <h2>Faucet Multiplayer</h2>
+        <p>Play for free — earn <strong>0.00001 XNO</strong> for every kill and heal, paid from the community faucet. No deposit required.</p>
+        <a href="/faucet" class="welcome-play-btn welcome-play-btn--sm" style="opacity:1;pointer-events:auto;background:#2a7a4a;">Play Faucet Multiplayer</a>
+      </div>
+
+      <div class="welcome-card mode-card mode-card--paid">
+        <div class="welcome-card-icon">💰</div>
+        <h2>Paid Multiplayer</h2>
+        <p>Deposit real XNO, shoot enemies, earn rewards. Every kill pays out instantly on-chain.</p>
+        {{if .DisablePaid}}
+        <span class="welcome-play-btn welcome-play-btn--sm welcome-play-btn--disabled">Coming Soon</span>
+        {{else}}
+        <a href="/welcome" class="welcome-play-btn welcome-play-btn--sm">Play Paid Multiplayer</a>
+        {{end}}
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

@@ -148,10 +148,8 @@ body {
 
 .game-layout {
   display: flex;
-  align-items: flex-start;
-  gap: 20px;
-  padding: 16px;
   justify-content: center;
+  padding: 16px;
 }
 
 .game-wrap {
@@ -311,6 +309,248 @@ body {
   font-size: 0.9rem;
   color: #aaa;
 }
+
+.game-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Wallet header button ── */
+
+.wallet-header-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(74,144,217,0.5);
+  background: rgba(74,144,217,0.12);
+  color: #4a90d9;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.wallet-header-btn:hover {
+  background: rgba(74,144,217,0.22);
+  border-color: #4a90d9;
+}
+
+/* ── Donate header button ── */
+
+.donate-header-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(245,166,35,0.4);
+  background: rgba(245,166,35,0.08);
+  color: #F5A623;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  animation: donate-shine 2.5s ease-in-out infinite;
+  transition: filter 0.15s;
+}
+
+.donate-header-btn:hover {
+  filter: brightness(1.2);
+}
+
+/* ── Wallet modal ── */
+
+.wallet-modal-box {
+  background: #0f0f1a;
+  border: 1px solid #2a2a4a;
+  border-radius: 14px;
+  padding: 0;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wallet-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 16px;
+  border-bottom: 1px solid #1e1e30;
+}
+
+.wallet-modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.wallet-close-btn {
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.wallet-close-btn:hover {
+  color: #fff;
+  background: #1e1e30;
+}
+
+.wallet-card {
+  padding: 18px 24px;
+  border-bottom: 1px solid #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wallet-card:last-child {
+  border-bottom: none;
+}
+
+.wallet-card-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #555;
+  font-weight: 600;
+}
+
+.wallet-card-hint {
+  font-size: 0.78rem;
+  color: #555;
+  line-height: 1.5;
+}
+
+.wallet-card-hint strong {
+  color: #777;
+}
+
+.wallet-balance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wallet-balance-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #52C07A;
+  font-family: monospace;
+}
+
+.wallet-refresh-btn {
+  background: none;
+  border: 1px solid #2a2a4a;
+  color: #555;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: color 0.15s, border-color 0.15s;
+  line-height: 1;
+}
+
+.wallet-refresh-btn:hover {
+  color: #fff;
+  border-color: #555;
+}
+
+.wallet-refresh-btn.spinning {
+  display: inline-block;
+  animation: spin 0.6s linear infinite;
+  color: #4a90d9;
+  border-color: #4a90d9;
+}
+
+.wallet-address-box {
+  background: #080810;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.72rem;
+  font-family: monospace;
+  color: #4a90d9;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+.wallet-address-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.wallet-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  display: block;
+  transition: background 0.15s, border-color 0.15s, filter 0.15s;
+}
+
+.wallet-btn--secondary {
+  background: #13131f;
+  border: 1px solid #2a2a4a;
+  color: #888;
+}
+
+.wallet-btn--secondary:hover {
+  color: #fff;
+  border-color: #555;
+}
+
+.wallet-btn--withdraw {
+  background: #1b5e20;
+  color: #a5d6a7;
+  width: 100%;
+  padding: 10px;
+  font-size: 0.9rem;
+}
+
+.wallet-btn--withdraw:hover:not(:disabled) {
+  filter: brightness(1.2);
+}
+
+.wallet-btn--withdraw:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.wallet-cost-hint {
+  font-size: 0.72rem;
+  color: #444;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.wallet-cost-hint strong {
+  color: #666;
+}
+
+.wallet-copy-confirm {
+  font-size: 0.75rem;
+  color: #52C07A;
+  text-align: center;
+}
+
+.wallet-status {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.wallet-status--ok  { color: #52C07A; }
+.wallet-status--err { color: #e05252; }
 
 .room-label strong {
   color: #fff;
@@ -985,6 +1225,14 @@ canvas {
   font-size: 0.95rem;
 }
 
+.welcome-play-btn--disabled {
+  background: #2a2a3a;
+  color: #555;
+  cursor: default;
+  pointer-events: none;
+  border: 1px solid #333;
+}
+
 .welcome-cards {
   display: flex;
   gap: 24px;
@@ -1037,4 +1285,48 @@ canvas {
   padding: 8px 10px;
   line-height: 1.5;
   margin-top: 4px;
+}
+
+/* ── Landing (mode selector) ── */
+
+.mode-card {
+  align-items: center;
+  text-align: center;
+}
+
+.mode-card--paid {
+}
+
+.mode-card--faucet {
+  border-color: #2a7a4a;
+  box-shadow: 0 0 18px rgba(42, 122, 74, 0.35);
+}
+
+.mode-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #555;
+  border: 1px solid #333;
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+
+/* ── Faucet earned badge (game header) ── */
+
+.faucet-earned-badge {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #52C07A;
+  background: rgba(82,192,122,0.10);
+  border: 1px solid rgba(82,192,122,0.30);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
+/* Pre-selected team button highlight in the team picker modal */
+.btn-team-selected {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }

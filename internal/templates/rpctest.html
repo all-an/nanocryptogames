@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>RPC Test — Nano Faucet Multiplayer</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { font-family: monospace; background: #111; color: #eee; padding: 2rem; max-width: 600px; margin: 0 auto; }
+    h1 { color: #f0a500; margin-bottom: 0.25rem; }
+    .subtitle { color: #666; font-size: 0.85rem; margin-bottom: 2rem; }
+
+    .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { margin: 0 0 1rem; font-size: 1rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .address-box { background: #111; border: 1px solid #333; border-radius: 4px; padding: 0.75rem 1rem; word-break: break-all; font-size: 0.85rem; color: #90caf9; }
+    .copy-btn { margin-top: 0.5rem; background: #222; border: 1px solid #444; color: #ccc; padding: 0.35rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+    .copy-btn:hover { background: #333; }
+
+    .balance-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .balance-value { font-size: 1.5rem; color: #4caf50; font-weight: bold; }
+    .refresh-btn { background: none; border: 1px solid #444; color: #888; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+    .refresh-btn:hover { color: #eee; border-color: #888; }
+
+    .btn { display: block; width: 100%; padding: 0.7rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-family: monospace; margin-bottom: 0.75rem; }
+    .btn-receive  { background: #1565c0; color: #fff; }
+    .btn-receive:hover  { background: #1976d2; }
+    .btn-withdraw { background: #1b5e20; color: #fff; }
+    .btn-withdraw:hover { background: #2e7d32; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .input-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .address-input { flex: 1; background: #111; border: 1px solid #444; color: #eee; padding: 0.5rem 0.75rem; border-radius: 4px; font-family: monospace; font-size: 0.85rem; }
+    .address-input:focus { outline: none; border-color: #666; }
+
+    .log { background: #0d0d0d; border: 1px solid #222; border-radius: 4px; padding: 0.75rem 1rem; min-height: 80px; max-height: 220px; overflow-y: auto; font-size: 0.8rem; }
+    .log-line { padding: 0.15rem 0; border-bottom: 1px solid #1a1a1a; }
+    .log-line:last-child { border-bottom: none; }
+    .ok   { color: #4caf50; }
+    .err  { color: #f44336; }
+    .info { color: #90caf9; }
+    .dim  { color: #555; }
+
+    .step { color: #888; font-size: 0.8rem; margin-bottom: 0.5rem; }
+    .divider { border: none; border-top: 1px solid #2a2a2a; margin: 1rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Ӿ RPC Test</h1>
+  <p class="subtitle">Send a small amount to the test wallet, receive it, then withdraw it back. Mirrors the exact add-funds / withdraw flow used in the game.</p>
+
+  <!-- Step 1: Test wallet address -->
+  <div class="card">
+    <h2>Step 1 — Test Wallet Address</h2>
+    <p class="step">Copy this address and send a tiny amount from your wallet.</p>
+    <div class="address-box" id="wallet-address">{{.Address}}</div>
+    <button class="copy-btn" onclick="copyAddress()">Copy address</button>
+  </div>
+
+  <!-- Step 2: Balance -->
+  <div class="card">
+    <h2>Step 2 — Balance</h2>
+    <p class="step">After sending, click Receive Pending to pocket the incoming block.</p>
+    <div class="balance-row">
+      <span class="balance-value" id="balance-display">…</span>
+      <button class="refresh-btn" title="Refresh balance" onclick="fetchBalance()">↻</button>
+    </div>
+    <button class="btn btn-receive" id="receive-btn" onclick="receivePending()">Receive Pending</button>
+  </div>
+
+  <!-- Step 3: Withdraw -->
+  <div class="card">
+    <h2>Step 3 — Withdraw</h2>
+    <p class="step">Enter your nano_ address to send the full balance back.</p>
+    <div class="input-row">
+      <input class="address-input" id="to-address" type="text" placeholder="nano_1abc…" spellcheck="false">
+    </div>
+    <button class="btn btn-withdraw" id="withdraw-btn" onclick="withdraw()">Withdraw Full Balance</button>
+  </div>
+
+  <!-- Log -->
+  <div class="card">
+    <h2>Log</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+  <p class="dim" style="font-size:0.75rem">Disable: <code>UPDATE settings SET value = 'false' WHERE key = 'rpc_test';</code></p>
+
+  <script>
+    function log(msg, cls) {
+      const el = document.getElementById('log');
+      const line = document.createElement('div');
+      line.className = 'log-line ' + (cls || 'info');
+      line.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function copyAddress() {
+      const addr = document.getElementById('wallet-address').textContent.trim();
+      navigator.clipboard.writeText(addr).then(() => log('Address copied to clipboard.', 'dim'));
+    }
+
+    async function fetchBalance() {
+      try {
+        const res = await fetch('/rpc-test/balance');
+        const data = await res.json();
+        if (data.error) { log('Balance error: ' + data.error, 'err'); return; }
+        document.getElementById('balance-display').textContent = data.xno + ' XNO';
+        log('Balance: ' + data.xno + ' XNO (' + data.balance + ' raw)', 'ok');
+      } catch(e) { log('Fetch error: ' + e, 'err'); }
+    }
+
+    async function receivePending() {
+      const btn = document.getElementById('receive-btn');
+      btn.disabled = true;
+      btn.textContent = 'Receiving…';
+      log('Calling receive pending…', 'dim');
+      try {
+        const res = await fetch('/rpc-test/receive', { method: 'POST' });
+        const data = await res.json();
+        if (data.error) {
+          log('Receive error: ' + data.error, 'err');
+        } else if (data.received === 0) {
+          log(data.message || 'No pending blocks found.', 'info');
+        } else {
+          document.getElementById('balance-display').textContent = data.xno + ' XNO';
+          log('Received ' + data.received + ' block(s). New balance: ' + data.xno + ' XNO', 'ok');
+        }
+      } catch(e) { log('Fetch error: ' + e, 'err'); }
+      btn.disabled = false;
+      btn.textContent = 'Receive Pending';
+    }
+
+    async function withdraw() {
+      const to = document.getElementById('to-address').value.trim();
+      if (!to.startsWith('nano_') && !to.startsWith('xrb_')) {
+        log('Enter a valid nano_ address first.', 'err');
+        return;
+      }
+      const btn = document.getElementById('withdraw-btn');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      log('Withdrawing to ' + to + '…', 'dim');
+      try {
+        const res = await fetch('/rpc-test/withdraw', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to })
+        });
+        const data = await res.json();
+        if (data.error) {
+          log('Withdraw error: ' + data.error, 'err');
+        } else {
+          document.getElementById('balance-display').textContent = '0.000000 XNO';
+          log('Withdrew ' + data.xno + ' XNO → ' + data.toAddress, 'ok');
+          log('Block: ' + data.blockHash, 'ok');
+        }
+      } catch(e) { log('Fetch error: ' + e, 'err'); }
+      btn.disabled = false;
+      btn.textContent = 'Withdraw Full Balance';
+    }
+
+    // Load balance on page open.
+    fetchBalance();
+  </script>
+</body>
+</html>

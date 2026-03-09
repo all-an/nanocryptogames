@@ -5,20 +5,27 @@ package nano
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/blake2b"
 )
 
 const rpcTimeout = 60 * time.Second
 
 // Config holds the primary and fallback Nano RPC node URLs.
 type Config struct {
-	PrimaryURL  string // e.g. https://nanoslo.0x.no
-	FallbackURL string // e.g. https://node.somenano.com
+	PrimaryURL  string // e.g. https://rpc.nano.to
+	FallbackURL string // e.g. https://rpc.nano.to
+	APIKey      string // optional nano.to paid API key (removes rate limits)
 }
 
 // Client is an HTTP client for the Nano RPC protocol with automatic fallback.
@@ -161,22 +168,100 @@ func (c *Client) BlockInfo(ctx context.Context, blockHash string) (*BlockDetails
 	return &BlockDetails{Amount: r.Amount, Account: r.Account}, nil
 }
 
-// GenerateWork requests proof-of-work from the node for the given hash or public key hex.
+// GenerateWork requests proof-of-work for the given hash or public key hex.
+// It races a remote RPC call (GPU peers) against local CPU mining and returns
+// whichever finishes first, so a slow or unresponsive node never adds latency.
 func (c *Client) GenerateWork(ctx context.Context, hash string) (string, error) {
-	var r struct {
-		Work  string `json:"work"`
-		Error rpcErrorField `json:"error"`
+	type result struct {
+		work string
+		err  error
 	}
-	if err := c.call(ctx, map[string]string{
-		"action": "work_generate",
-		"hash":   hash,
-	}, &r); err != nil {
-		return "", err
+
+	// Shared cancellable context — winner cancels the loser.
+	raceCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ch := make(chan result, 2)
+
+	// Remote attempt: GPU peers via RPC node (fast when available).
+	go func() {
+		var r struct {
+			Work  string        `json:"work"`
+			Error rpcErrorField `json:"error"`
+		}
+		err := c.call(raceCtx, map[string]any{
+			"action":    "work_generate",
+			"hash":      hash,
+			"use_peers": true,
+		}, &r)
+		if err == nil && r.Error == "" {
+			ch <- result{r.Work, nil}
+		}
+		// If remote fails, don't send — CPU result will arrive instead.
+	}()
+
+	// Local CPU mining: always works, ~2-5 s at send difficulty.
+	go func() {
+		work, err := generateWorkCPU(raceCtx, hash)
+		ch <- result{work, err}
+	}()
+
+	// Return whichever result arrives first.
+	select {
+	case res := <-ch:
+		cancel() // stop the other goroutine
+		return res.work, res.err
+	case <-ctx.Done():
+		return "", ctx.Err()
 	}
-	if r.Error != "" {
-		return "", fmt.Errorf("rpc work_generate: %s", r.Error)
+}
+
+// generateWorkCPU mines Nano proof-of-work locally.
+// It finds an 8-byte nonce N such that blake2b_64(N_LE || hashBytes) >= threshold.
+// The standard send/change difficulty requires ~16M iterations on average (~1-3s on modern hardware).
+func generateWorkCPU(ctx context.Context, hashHex string) (string, error) {
+	hashBytes, err := hex.DecodeString(hashHex)
+	if err != nil {
+		return "", fmt.Errorf("decode hash: %w", err)
 	}
-	return r.Work, nil
+
+	const threshold = uint64(0xfffffff800000000) // epoch-2 send/change difficulty
+
+	h, err := blake2b.New(8, nil)
+	if err != nil {
+		return "", fmt.Errorf("blake2b init: %w", err)
+	}
+
+	// Start from a random nonce so concurrent calls don't duplicate effort.
+	var seed [8]byte
+	if _, err := rand.Read(seed[:]); err != nil {
+		return "", fmt.Errorf("rand seed: %w", err)
+	}
+	nonce := binary.LittleEndian.Uint64(seed[:])
+
+	var nonceLE [8]byte
+	for i := 0; ; i++ {
+		// Check for context cancellation every 50k iterations to stay responsive.
+		if i%50000 == 0 {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			default:
+			}
+		}
+
+		binary.LittleEndian.PutUint64(nonceLE[:], nonce)
+		h.Reset()
+		h.Write(nonceLE[:])
+		h.Write(hashBytes)
+		digest := h.Sum(nil)
+		if binary.LittleEndian.Uint64(digest) >= threshold {
+			// The Nano RPC work field is the nonce as a 16-char big-endian hex uint64,
+			// matching the format returned by work_generate.
+			return fmt.Sprintf("%016x", nonce), nil
+		}
+		nonce++
+	}
 }
 
 // ProcessBlock submits a signed, worked block to the network.
@@ -255,6 +340,9 @@ func (c *Client) post(ctx context.Context, url string, body []byte) ([]byte, err
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if c.cfg.APIKey != "" {
+		req.Header.Set("Authorization", c.cfg.APIKey)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {

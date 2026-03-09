@@ -71,7 +71,7 @@ ws.onmessage = (event) => {
   if (msg.type === "init") {
     myID   = msg.id;
     myTeam = msg.team;
-    if (msg.nanoAddress) showDepositPanel(msg.nanoAddress);
+    if (msg.nanoAddress) showWalletPanel(msg.nanoAddress);
     updateBalance("0.000000");
 
   } else if (msg.type === "state") {
@@ -523,12 +523,20 @@ function drawBullets() {
   }
 }
 
-// ── Deposit panel ─────────────────────────────────────────────────────────────
+// ── Wallet modal ──────────────────────────────────────────────────────────────
 
-// updateBalance refreshes the balance display in the deposit panel.
+// updateBalance refreshes the balance display in the wallet modal.
 function updateBalance(xno) {
-  const el = document.getElementById("deposit-balance");
+  const el = document.getElementById("wallet-balance");
   if (el) el.textContent = `${xno} XNO`;
+}
+
+function openWalletModal() {
+  document.getElementById("wallet-modal").classList.remove("hidden");
+}
+
+function closeWalletModal() {
+  document.getElementById("wallet-modal").classList.add("hidden");
 }
 
 // showRoundOver displays the round-over overlay with winner info and countdown.
@@ -572,7 +580,7 @@ function openDonateModal() {
     info.textContent = "Your session balance is empty. Deposit Nano first.";
     document.querySelectorAll(".donate-preset-btn").forEach(b => b.disabled = true);
   } else {
-    const balXNO = document.getElementById("deposit-balance").textContent;
+    const balXNO = document.getElementById("wallet-balance").textContent;
     info.textContent = `Session balance: ${balXNO}`;
     document.querySelectorAll(".donate-preset-btn").forEach(b => b.disabled = false);
   }
@@ -638,34 +646,30 @@ function showWithdrawResult(ok, text) {
   const btn    = document.getElementById("withdraw-btn");
   const status = document.getElementById("withdraw-status");
   btn.disabled    = false;
-  btn.textContent = "Withdraw";
+  btn.textContent = "Withdraw Full Balance";
   status.textContent = text;
-  status.className   = ok ? "withdraw-status withdraw-status--ok" : "withdraw-status withdraw-status--err";
+  status.className   = ok ? "wallet-status wallet-status--ok" : "wallet-status wallet-status--err";
   status.classList.remove("hidden");
   setTimeout(() => status.classList.add("hidden"), 6000);
 }
 
-// showDepositPanel populates the sidebar and funds modal with the session address.
-function showDepositPanel(address) {
-  document.getElementById("deposit-waiting").classList.add("hidden");
-  document.getElementById("deposit-ready").classList.remove("hidden");
+// showWalletPanel populates the wallet modal with the session address and wires buttons.
+function showWalletPanel(address) {
+  // Show header buttons now that we have an address.
+  document.getElementById("wallet-btn").classList.remove("hidden");
+  document.getElementById("donate-trigger").classList.remove("hidden");
 
-  // Populate the Add Funds modal address fields.
-  document.getElementById("funds-address").textContent = address;
-  document.getElementById("funds-nault-link").href = `https://nault.cc/account/${address}`;
+  // Populate address fields in the wallet modal.
+  document.getElementById("wallet-address").textContent = address;
+  document.getElementById("wallet-nault-link").href = `https://nault.cc/account/${address}`;
 
-  document.getElementById("funds-copy-btn").addEventListener("click", () => {
+  document.getElementById("wallet-copy-btn").addEventListener("click", () => {
     navigator.clipboard.writeText(address).then(() => {
-      const el = document.getElementById("funds-copy-confirm");
+      const el = document.getElementById("wallet-copy-confirm");
       el.classList.remove("hidden");
       setTimeout(() => el.classList.add("hidden"), 1500);
     });
   });
-
-  document.getElementById("add-funds-btn").addEventListener("click", () =>
-    document.getElementById("funds-modal").classList.remove("hidden"));
-  document.getElementById("funds-close-btn").addEventListener("click", () =>
-    document.getElementById("funds-modal").classList.add("hidden"));
 
   document.getElementById("withdraw-btn").addEventListener("click", sendWithdraw);
 
@@ -675,6 +679,12 @@ function showDepositPanel(address) {
     btn.classList.add("spinning");
     ws.send(JSON.stringify({ action: "refresh_balance" }));
     setTimeout(() => btn.classList.remove("spinning"), 1200);
+  });
+
+  document.getElementById("wallet-btn").addEventListener("click", openWalletModal);
+  document.getElementById("wallet-close-btn").addEventListener("click", closeWalletModal);
+  document.getElementById("wallet-modal").addEventListener("click", (e) => {
+    if (e.target === document.getElementById("wallet-modal")) closeWalletModal();
   });
 }
 

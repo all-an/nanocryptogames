@@ -7,8 +7,9 @@ import "sync"
 // Hub manages the set of live rooms.
 // All room creation and teardown is serialised through the Hub mutex.
 type Hub struct {
-	mu    sync.Mutex
-	rooms map[string]*Room
+	mu       sync.Mutex
+	rooms    map[string]*Room
+	roomMode string // mode passed to every new Room ("paid" or "faucet")
 }
 
 // RoomSummary is a lightweight snapshot of a room used for the lobby listing.
@@ -19,9 +20,14 @@ type RoomSummary struct {
 	BlueCount   int    `json:"blueCount"`
 }
 
-// NewHub creates an empty Hub ready for use.
+// NewHub creates an empty paid-mode Hub ready for use.
 func NewHub() *Hub {
-	return &Hub{rooms: make(map[string]*Room)}
+	return &Hub{rooms: make(map[string]*Room), roomMode: "paid"}
+}
+
+// NewFaucetHub creates a Hub whose rooms run in faucet mode.
+func NewFaucetHub() *Hub {
+	return &Hub{rooms: make(map[string]*Room), roomMode: "faucet"}
 }
 
 // ActiveRooms returns a snapshot of all rooms that currently have players.
@@ -50,7 +56,7 @@ func (h *Hub) JoinRoom(roomID string, p *Player) *Room {
 
 	r, ok := h.rooms[roomID]
 	if !ok {
-		r = NewRoom(roomID)
+		r = NewRoom(roomID, h.roomMode)
 		h.rooms[roomID] = r
 		go r.Run()
 	}

@@ -6,17 +6,11 @@ import (
 	"math/big"
 )
 
-// colorPalette is the fixed set of player colours, assigned by join order.
-var colorPalette = []string{
-	"#4A90D9", // Nano blue
-	"#E05252", // Crimson
-	"#52C07A", // Emerald
-	"#F5A623", // Amber
-	"#9B59B6", // Violet
-	"#1ABC9C", // Teal
-	"#E67E22", // Orange
-	"#E91E8C", // Rose
-}
+// redColorPalette assigns warm colours to red-team players, by join order within the team.
+var redColorPalette = []string{"#E05252", "#E67E22", "#F5A623", "#E91E8C"}
+
+// blueColorPalette assigns cool colours to blue-team players, by join order within the team.
+var blueColorPalette = []string{"#4A90D9", "#1ABC9C", "#9B59B6", "#3498DB"}
 
 // Player holds the in-memory state for a single connected player.
 type Player struct {
@@ -33,8 +27,16 @@ type Player struct {
 	SpawnGX        int      // spawn column assigned on join — used for round restarts
 	SpawnGY        int      // spawn row assigned on join — used for round restarts
 	Health         int
-	BalanceRaw *big.Int   // session balance in raw Nano units (tracks credits/debits)
+	BalanceRaw *big.Int // session balance in raw Nano units (tracks credits/debits)
 	send       chan []byte // outbound messages to this player's WebSocket
+
+	// Faucet-mode fields — non-nil only when Mode == "faucet".
+	FaucetRewardCh chan string // room sends "kill" or "heal" to trigger a payout
+	FaucetAddress  string     // player's own nano_ address for receiving faucet rewards
+	FaucetEarned   *big.Int   // running total of rewards paid this session
+
+	// RemoteAddr holds the player's client IP (used for faucet anti-abuse checks).
+	RemoteAddr string
 }
 
 // NewPlayer creates a Player with full health and a buffered send channel.
