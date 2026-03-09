@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
 
@@ -22,6 +23,13 @@ var stateBlockPreamble = append(make([]byte, 31), 0x06)
 // Send creates, signs, and submits a state block to transfer amountRaw (in raw units)
 // from wallet to toAddress. Returns the confirmed block hash.
 func Send(ctx context.Context, rpc *Client, wallet *Wallet, toAddress, amountRaw string) (string, error) {
+	return SendFast(ctx, rpc, wallet, toAddress, amountRaw, "")
+}
+
+// SendFast is like Send but accepts a pre-computed work string (pass "" to auto-generate).
+// Using a pre-cached work value eliminates the ~1-5 s PoW wait, enabling near-instant sends.
+// Returns the confirmed block hash, which becomes the new account frontier.
+func SendFast(ctx context.Context, rpc *Client, wallet *Wallet, toAddress, amountRaw, preWork string) (string, error) {
 	info, err := rpc.GetAccountInfo(ctx, wallet.Address)
 	if err != nil {
 		return "", fmt.Errorf("account info: %w", err)
@@ -51,9 +59,12 @@ func Send(ctx context.Context, rpc *Client, wallet *Wallet, toAddress, amountRaw
 		rep = DefaultRepresentative
 	}
 
-	work, err := rpc.GenerateWork(ctx, info.Frontier)
-	if err != nil {
-		return "", fmt.Errorf("work: %w", err)
+	work := preWork
+	if work == "" {
+		work, err = rpc.GenerateWork(ctx, info.Frontier)
+		if err != nil {
+			return "", fmt.Errorf("work: %w", err)
+		}
 	}
 
 	blockHash, err := stateBlockHash(wallet.PublicKey, info.Frontier, rep, newBalance, destPub)
@@ -65,7 +76,7 @@ func Send(ctx context.Context, rpc *Client, wallet *Wallet, toAddress, amountRaw
 		return "", fmt.Errorf("sign: %w", err)
 	}
 
-	return rpc.ProcessBlock(ctx, "send", map[string]string{
+	block := map[string]string{
 		"type":           "state",
 		"account":        wallet.Address,
 		"previous":       info.Frontier,
@@ -74,7 +85,20 @@ func Send(ctx context.Context, rpc *Client, wallet *Wallet, toAddress, amountRaw
 		"link":           hex.EncodeToString(destPub),
 		"signature":      strings.ToUpper(hex.EncodeToString(sig)),
 		"work":           work,
-	})
+	}
+	hash, err := rpc.ProcessBlock(ctx, "send", block)
+	if err != nil && preWork != "" {
+		// Pre-cached work may be stale (e.g. a receive block changed the frontier).
+		// Regenerate fresh work and retry once before giving up.
+		log.Printf("nano: pre-cached work rejected, regenerating (frontier %s…): %v", info.Frontier[:8], err)
+		work, err = rpc.GenerateWork(ctx, info.Frontier)
+		if err != nil {
+			return "", fmt.Errorf("work (retry): %w", err)
+		}
+		block["work"] = work
+		hash, err = rpc.ProcessBlock(ctx, "send", block)
+	}
+	return hash, err
 }
 
 // ReceivePending receives all unconfirmed incoming blocks for the wallet account.

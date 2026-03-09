@@ -99,6 +99,12 @@ type FaucetWSHandler struct {
 	faucetWallet *nano.Wallet // nil when FAUCET_SEED is not configured
 	sendMu       sync.Mutex  // serialises all sends from the faucet wallet
 	testMode     bool        // when true, bypass anti-abuse checks (FAUCET_TEST_MODE=true)
+
+	// Work pre-cache: after each send we kick off PoW for the next block in the
+	// background so the following reward is near-instant.
+	// Both fields are guarded by sendMu (sends are already serialised).
+	cachedWork     string // pre-computed work valid for cachedFrontier
+	cachedFrontier string // frontier hash the cached work was computed for
 }
 
 // NewFaucetWSHandler wires up all faucet WebSocket dependencies.
@@ -268,8 +274,29 @@ func (h *FaucetWSHandler) sendReward(ctx context.Context, p *game.Player, reason
 	defer cancel()
 
 	// All sends from the faucet wallet are serialised — Nano blocks must form a chain.
+	// We pass any pre-cached work so the send is near-instant when available.
 	h.sendMu.Lock()
-	hash, err := nano.Send(sendCtx, h.rpc, h.faucetWallet, p.FaucetAddress, faucetRewardRaw)
+	preWork := h.cachedWork
+	h.cachedWork = ""
+	h.cachedFrontier = ""
+	hash, err := nano.SendFast(sendCtx, h.rpc, h.faucetWallet, p.FaucetAddress, faucetRewardRaw, preWork)
+	if err == nil {
+		// The confirmed block hash is the new frontier. Pre-compute work for the
+		// next send in the background so it arrives before the next reward fires.
+		newFrontier := hash
+		go func() {
+			workCtx, wCancel := context.WithTimeout(context.Background(), 120*time.Second)
+			defer wCancel()
+			nextWork, wErr := h.rpc.GenerateWork(workCtx, newFrontier)
+			if wErr == nil {
+				h.sendMu.Lock()
+				h.cachedWork = nextWork
+				h.cachedFrontier = newFrontier
+				h.sendMu.Unlock()
+				log.Printf("faucet: pre-cached work for frontier %s…", newFrontier[:8])
+			}
+		}()
+	}
 	h.sendMu.Unlock()
 
 	if err != nil {

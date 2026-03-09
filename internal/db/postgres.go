@@ -172,6 +172,13 @@ func (db *DB) Setting(ctx context.Context, key string) (string, error) {
 	return value, err
 }
 
+// FaucetDisableSameIPCheck returns true when the faucet_disable_same_ip_check
+// setting is "true", meaning same-IP kills and heals will still earn rewards.
+func (db *DB) FaucetDisableSameIPCheck(ctx context.Context) bool {
+	val, err := db.Setting(ctx, "faucet_disable_same_ip_check")
+	return err == nil && val == "true"
+}
+
 // RecordFaucetPayout inserts an audit row for a faucet reward that was sent on-chain.
 func (db *DB) RecordFaucetPayout(ctx context.Context, reason, toAddress, ip, amount, blockHash string) error {
 	_, err := db.pool.Exec(ctx,

@@ -2,6 +2,12 @@
 // Same grid renderer as game.js; no session wallet, no deposit/withdraw.
 // Kills and heals earn 0.00001 XNO paid from the server faucet wallet.
 
+// If the player reloads the game page, send them to the lobby instead of
+// spawning a duplicate player. The Navigation API reliably detects reloads.
+if (performance.getEntriesByType("navigation")[0]?.type === "reload") {
+  window.location.replace("/faucet/lobby");
+}
+
 const canvas = document.getElementById("game");
 const ctx    = canvas.getContext("2d");
 
@@ -10,6 +16,31 @@ const COLS        = 25;
 const ROWS        = 17;
 const MOVE_RADIUS = 5.0;
 const MOVE_SPEED  = 6;
+
+// ── Barriers ───────────────────────────────────────────────────────────────────
+// Must mirror barrierCells in physics.go exactly.
+
+const BARRIERS = new Set();
+(function () {
+  function addBlock(col, row, size) {
+    for (let dy = 0; dy < size; dy++)
+      for (let dx = 0; dx < size; dx++)
+        BARRIERS.add(`${col + dx},${row + dy}`);
+  }
+  addBlock(3,  2,  3); // 3×3 top-left corner
+  addBlock(19, 2,  3); // 3×3 top-right corner
+  addBlock(3,  12, 3); // 3×3 bottom-left corner
+  addBlock(19, 12, 3); // 3×3 bottom-right corner
+  addBlock(8,  7,  2); // 2×2 left mid-field
+  addBlock(15, 7,  2); // 2×2 right mid-field
+  addBlock(11, 2,  2); // 2×2 centre-top
+  addBlock(11, 13, 2); // 2×2 centre-bottom
+  addBlock(6,  10, 1); // 1×1 left flank
+  addBlock(18, 10, 1); // 1×1 right flank
+  addBlock(12, 5,  1); // 1×1 centre
+})();
+
+function isBarrier(gx, gy) { return BARRIERS.has(`${gx},${gy}`); }
 
 const roomID       = canvas.dataset.room;
 const faucetAddr   = canvas.dataset.faucetAddress || "";
@@ -25,16 +56,47 @@ let pending   = null;
 const playerVisuals = {};
 const bullets       = [];
 const healFlashes   = [];
+const wallImpacts   = [];
 
 // ── Path helpers ───────────────────────────────────────────────────────────────
 
+// computePath uses BFS (8-directional) to find the shortest path around barriers.
+// Falls back to a straight walk only when no path exists (should not happen in practice).
 function computePath(fromGX, fromGY, toGX, toGY) {
+  if (fromGX === toGX && fromGY === toGY) return [];
+
+  const startKey = `${fromGX},${fromGY}`;
+  const goalKey  = `${toGX},${toGY}`;
+  const parent   = { [startKey]: null };
+  const queue    = [[fromGX, fromGY]];
+
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+
+  outer: while (queue.length > 0) {
+    const [cx, cy] = queue.shift();
+    for (const [dx, dy] of dirs) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+      if (isBarrier(nx, ny)) continue;
+      const key = `${nx},${ny}`;
+      if (key in parent) continue;
+      parent[key] = `${cx},${cy}`;
+      if (key === goalKey) break outer;
+      queue.push([nx, ny]);
+    }
+  }
+
+  // Reconstruct path from goal back to start.
+  if (!(goalKey in parent)) {
+    // No path found — return empty so the player stays put visually.
+    return [];
+  }
   const path = [];
-  let cx = fromGX, cy = fromGY;
-  while (cx !== toGX || cy !== toGY) {
-    cx += Math.sign(toGX - cx);
-    cy += Math.sign(toGY - cy);
-    path.push({ gx: cx, gy: cy });
+  let cur = goalKey;
+  while (cur !== startKey) {
+    const [x, y] = cur.split(",").map(Number);
+    path.unshift({ gx: x, gy: y });
+    cur = parent[cur];
   }
   return path;
 }
@@ -81,6 +143,8 @@ ws.onmessage = (event) => {
     state = msg;
 
   } else if (msg.type === "shot") {
+    // Local shooter already spawned the bullet in sendShoot — skip to avoid duplicate.
+    if (msg.shooterID === myID) return;
     const sv = playerVisuals[msg.shooterID];
     const tv = playerVisuals[msg.targetID];
     if (sv && tv) {
@@ -112,16 +176,23 @@ ws.onmessage = (event) => {
 
   } else if (msg.type === "faucet_err") {
     showFaucetNotice(msg.message, false);
+
+  } else if (msg.type === "faucet_sameip") {
+    showFairPlayModal(msg.message);
   }
 };
 
+// When the WebSocket closes (server restart, network drop, or tab close/reload)
+// redirect back to the faucet lobby.
 ws.onclose = () => {
   ctx.fillStyle = "rgba(0,0,0,0.7)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#fff"; ctx.font = "24px system-ui";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText("Disconnected", canvas.width / 2, canvas.height / 2);
+  ctx.fillText("Disconnected — returning to lobby…", canvas.width / 2, canvas.height / 2);
+  setTimeout(() => { window.location.replace("/faucet/lobby"); }, 1500);
 };
+
 
 // ── Send helpers ───────────────────────────────────────────────────────────────
 
@@ -131,6 +202,14 @@ function sendMove(gx, gy) {
 }
 function sendShoot(targetID) {
   if (ws.readyState !== WebSocket.OPEN) return;
+  // Spawn the bullet immediately so it animates even when the server blocks the shot.
+  // The "shot" server event is skipped for the local shooter to avoid duplicates.
+  const sv = playerVisuals[myID];
+  const tv = playerVisuals[targetID];
+  if (sv && tv) {
+    bullets.push({ fromPx: sv.px, fromPy: sv.py, toPx: tv.px, toPy: tv.py,
+                   startTime: performance.now(), duration: 200 });
+  }
   ws.send(JSON.stringify({ action: "shoot", targetID }));
 }
 function sendHelp(targetID) {
@@ -144,6 +223,7 @@ function myPosition() { return state.players?.find(p => p.id === myID) ?? null; 
 function playerAtCell(gx, gy) { return state.players?.find(p => p.gx === gx && p.gy === gy) ?? null; }
 function isReachable(ox, oy, gx, gy) {
   if (ox === gx && oy === gy) return false;
+  if (isBarrier(gx, gy)) return false;
   const dx = gx - ox, dy = gy - oy;
   return Math.sqrt(dx * dx + dy * dy) <= MOVE_RADIUS;
 }
@@ -158,7 +238,7 @@ const MOVE_COOLDOWN = 150;
 
 document.addEventListener("keydown", (e) => {
   const me = myPosition();
-  if (!me || me.health < 100) return;
+  if (!me || me.health === 0) return;
   const now = Date.now();
   if (now - lastMoveAt < MOVE_COOLDOWN) return;
   let gx = me.gx, gy = me.gy;
@@ -183,10 +263,11 @@ canvas.addEventListener("mousemove", (e) => {
 canvas.addEventListener("mouseleave", () => { hoverCell = null; });
 canvas.addEventListener("click", (e) => {
   const me = myPosition();
-  if (!me || me.health < 100) return;
+  if (!me || me.health === 0) return;
   const rect = canvas.getBoundingClientRect();
   const gx = Math.floor((e.clientX - rect.left) / CELL);
   const gy = Math.floor((e.clientY - rect.top) / CELL);
+  if (isBarrier(gx, gy)) return;
   if (!isReachable(me.gx, me.gy, gx, gy)) return;
   const occupant      = playerAtCell(gx, gy);
   const isOtherPlayer = occupant && occupant.id !== myID;
@@ -245,22 +326,45 @@ function updateVisuals() {
   for (const id in playerVisuals) { if (!activeIDs.has(id)) delete playerVisuals[id]; }
 }
 
+function drawBarriers() {
+  for (const key of BARRIERS) {
+    const [gx, gy] = key.split(",").map(Number);
+    const x = gx * CELL, y = gy * CELL;
+    // Solid stone fill — warm grey
+    ctx.fillStyle = "#7a7a8a";
+    ctx.fillRect(x, y, CELL, CELL);
+    // Inner face — slightly darker
+    ctx.fillStyle = "#5c5c6e";
+    ctx.fillRect(x + 5, y + 5, CELL - 10, CELL - 10);
+    // Top & left bright bevel
+    ctx.fillStyle = "#b0b0c8";
+    ctx.fillRect(x, y, CELL, 5);
+    ctx.fillRect(x, y, 5, CELL);
+    // Bottom & right dark bevel
+    ctx.fillStyle = "#2a2a3a";
+    ctx.fillRect(x, y + CELL - 5, CELL, 5);
+    ctx.fillRect(x + CELL - 5, y, 5, CELL);
+  }
+}
+
 function draw() {
   ctx.fillStyle = "#1a1a2e";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   updateVisuals();
   drawGrid();
   const me = myPosition();
-  if (me && me.health === 100) drawReachableArea(me);
-  if (hoverCell && me && me.health === 100 && isReachable(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
+  if (me && me.health > 0) drawReachableArea(me);
+  if (hoverCell && me && me.health > 0 && isReachable(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
     drawCellHighlight(hoverCell.gx, hoverCell.gy, "rgba(255,255,255,0.10)");
   }
   if (pending) drawCellHighlight(pending.gx, pending.gy, "rgba(74,144,217,0.30)");
+  drawBarriers(); // drawn after highlights so barriers are never painted over
   for (const p of state.players || []) {
     const v = playerVisuals[p.id];
     if (v) drawPlayer(p, v.px, v.py);
   }
   drawBullets();
+  drawWallImpacts();
   drawHealFlashes();
   requestAnimationFrame(draw);
 }
@@ -343,6 +447,31 @@ function drawHealFlashes() {
   }
 }
 
+function drawWallImpacts() {
+  const now = performance.now();
+  let i = 0;
+  while (i < wallImpacts.length) {
+    const f = wallImpacts[i];
+    const t = Math.min(1, (now - f.startTime) / f.duration);
+    const r = 6 + t * 8; // expanding ring
+    ctx.save();
+    ctx.globalAlpha = 1 - t;
+    // Bright spark circle
+    ctx.beginPath();
+    ctx.arc(f.px, f.py, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#FFD700";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Inner white core
+    ctx.beginPath();
+    ctx.arc(f.px, f.py, 3 * (1 - t), 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.restore();
+    if (t >= 1) wallImpacts.splice(i, 1); else i++;
+  }
+}
+
 function drawBullets() {
   const now = performance.now();
   let i = 0;
@@ -351,6 +480,12 @@ function drawBullets() {
     const t = Math.min(1, (now - b.startTime) / b.duration);
     const bpx = b.fromPx + (b.toPx - b.fromPx) * t;
     const bpy = b.fromPy + (b.toPy - b.fromPy) * t;
+    // On barrier contact: spawn impact flash, then destroy.
+    if (isBarrier(Math.floor(bpx / CELL), Math.floor(bpy / CELL))) {
+      wallImpacts.push({ px: bpx, py: bpy, startTime: performance.now(), duration: 250 });
+      bullets.splice(i, 1);
+      continue;
+    }
     ctx.beginPath(); ctx.arc(bpx, bpy, 4, 0, Math.PI * 2);
     ctx.fillStyle = "#FFD700"; ctx.fill();
     if (t >= 1) bullets.splice(i, 1); else i++;
@@ -391,6 +526,19 @@ function showFaucetNotice(text, ok) {
   noticeTimer = setTimeout(() => { toast.style.opacity = "0"; }, 3000);
 }
 
+// showFairPlayModal shows a one-shot overlay asking the player to play fair.
+// Subsequent calls within the same session are suppressed after the first.
+let fairPlayShown = false;
+function showFairPlayModal(message) {
+  if (fairPlayShown) return;
+  fairPlayShown = true;
+  const el = document.getElementById("fairplay-modal");
+  if (el) {
+    document.getElementById("fairplay-msg").textContent = message;
+    el.classList.remove("hidden");
+  }
+}
+
 // ── Round over ─────────────────────────────────────────────────────────────────
 
 function showRoundOver(killerID, prize) {
@@ -427,6 +575,9 @@ document.getElementById("faucet-copy-btn").addEventListener("click", () => {
 });
 document.getElementById("no-address-close").addEventListener("click", () => {
   document.getElementById("no-address-modal").classList.add("hidden");
+});
+document.getElementById("fairplay-close").addEventListener("click", () => {
+  document.getElementById("fairplay-modal").classList.add("hidden");
 });
 
 draw();

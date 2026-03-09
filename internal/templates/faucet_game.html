@@ -24,7 +24,7 @@
         data-faucet-address="{{.FaucetAddress}}"
         width="1000" height="680"></canvas>
 
-      <p class="controls-hint">Move: WASD / arrow keys &nbsp;·&nbsp; or click a reachable square &nbsp;·&nbsp; Kill enemies or heal teammates to earn Nano</p>
+      <p class="controls-hint">Move: WASD / arrows or click &nbsp;·&nbsp; Stand next to a teammate to heal them &nbsp;·&nbsp; Each kill or heal earns <strong>0.00001 XNO</strong></p>
     </div>
 
   </div>
@@ -94,6 +94,15 @@
       <p class="modal-sub">You joined without a Nano address — you can play but kills and heals will not generate rewards.</p>
       <p class="modal-sub" style="margin-top:8px;">Go back to the lobby and enter your address to earn.</p>
       <button id="no-address-close" class="btn-secondary" style="margin-top:12px;">Got it</button>
+    </div>
+  </div>
+
+  <!-- Fair-play reminder modal -->
+  <div id="fairplay-modal" class="modal hidden" role="alert">
+    <div class="modal-box" style="max-width:380px;">
+      <p class="modal-title" style="font-size:1.4rem;">🙏</p>
+      <p id="fairplay-msg" class="modal-sub" style="line-height:1.6;"></p>
+      <button id="fairplay-close" class="btn-secondary" style="margin-top:16px;width:100%;">Got it</button>
     </div>
   </div>
 

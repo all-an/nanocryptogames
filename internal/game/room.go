@@ -3,6 +3,7 @@ package game
 
 import (
 	"encoding/json"
+	"log"
 	"math/big"
 	"sync"
 	"time"
@@ -79,16 +80,17 @@ type worldState struct {
 
 // Room represents one active game session with its own goroutine and tick loop.
 type Room struct {
-	ID          string
-	Mode        string // "paid" (default) or "faucet"
-	players     map[string]*Player
-	inputCh     chan Input
-	done        chan struct{}
-	mu          sync.RWMutex
-	playerCount int      // total players ever joined; used for spawn assignment
-	redCount    int      // red-team players ever joined; used for colour assignment
-	blueCount   int      // blue-team players ever joined; used for colour assignment
-	shotCostRaw *big.Int // cost per shot in raw Nano units (unused in faucet mode)
+	ID                 string
+	Mode               string // "paid" (default) or "faucet"
+	DisableSameIPCheck bool   // when true, same-IP kills/heals still earn faucet rewards
+	players            map[string]*Player
+	inputCh            chan Input
+	done               chan struct{}
+	mu                 sync.RWMutex
+	playerCount        int      // total players ever joined; used for spawn assignment
+	redCount           int      // red-team players ever joined; used for colour assignment
+	blueCount          int      // blue-team players ever joined; used for colour assignment
+	shotCostRaw        *big.Int // cost per shot in raw Nano units (unused in faucet mode)
 }
 
 // NewRoom creates a Room ready to accept players in the given mode ("paid" or "faucet").
@@ -219,12 +221,17 @@ func (r *Room) applyMove(input Input) {
 	defer r.mu.Unlock()
 
 	p, ok := r.players[input.PlayerID]
-	if !ok || p.Health < 100 {
-		return // incapacitated and dead players cannot move
+	if !ok || p.Health == 0 {
+		return // dead players cannot move
 	}
 
 	// Server enforces the movement radius — clients cannot teleport beyond it.
 	if !isValidMove(p.GX, p.GY, input.GX, input.GY) {
+		return
+	}
+
+	// In faucet mode, players cannot enter barrier cells.
+	if r.Mode == "faucet" && IsBarrier(input.GX, input.GY) {
 		return
 	}
 
@@ -238,9 +245,9 @@ func (r *Room) applyShoot(input Input) {
 	r.mu.Lock()
 
 	shooter, ok := r.players[input.PlayerID]
-	if !ok || shooter.Health < 100 {
+	if !ok || shooter.Health == 0 {
 		r.mu.Unlock()
-		return // only healthy players can shoot
+		return // dead players cannot shoot
 	}
 
 	target, ok := r.players[input.TargetID]
@@ -257,6 +264,12 @@ func (r *Room) applyShoot(input Input) {
 
 	// Validate that the target is within shooting range (same radius as movement).
 	if !isValidMove(shooter.GX, shooter.GY, target.GX, target.GY) {
+		r.mu.Unlock()
+		return
+	}
+
+	// In faucet mode, barriers block line-of-sight — players can hide behind them.
+	if r.Mode == "faucet" && !HasLineOfSight(shooter.GX, shooter.GY, target.GX, target.GY) {
 		r.mu.Unlock()
 		return
 	}
@@ -295,8 +308,15 @@ func (r *Room) applyShoot(input Input) {
 			// Signal the WS handler to send the real faucet payout.
 			// Guard: only pay when killer and victim come from different IPs
 			// so a player cannot farm rewards by killing their own alt tabs.
-			sameIP := shooter.RemoteAddr != "" && shooter.RemoteAddr == target.RemoteAddr
-			if shooter.FaucetRewardCh != nil && !sameIP {
+			sameIP := !r.DisableSameIPCheck && shooter.RemoteAddr != "" && shooter.RemoteAddr == target.RemoteAddr
+			if sameIP {
+				log.Printf("faucet: same-IP kill blocked (IP %s) — set faucet_disable_same_ip_check=true in settings to allow", shooter.RemoteAddr)
+				notice, _ := json.Marshal(map[string]string{
+					"type":    "faucet_sameip",
+					"message": "Please help the developer — be fair, play with other players, do not try to cheat the game 🙏",
+				})
+				shooter.Send(notice)
+			} else if shooter.FaucetRewardCh != nil {
 				select {
 				case shooter.FaucetRewardCh <- "kill":
 				default:
@@ -363,10 +383,21 @@ func (r *Room) applyHelp(input Input) {
 	target.Health = 100
 
 	// In faucet mode, signal the WS handler to send a heal reward to the helper.
+	// Apply the same same-IP guard as kills so players can't farm by healing their own alt tabs.
 	if r.Mode == "faucet" && helper.FaucetRewardCh != nil {
-		select {
-		case helper.FaucetRewardCh <- "heal":
-		default:
+		sameIP := !r.DisableSameIPCheck && helper.RemoteAddr != "" && helper.RemoteAddr == target.RemoteAddr
+		if sameIP {
+			log.Printf("faucet: same-IP heal blocked (IP %s) — set faucet_disable_same_ip_check=true in settings to allow", helper.RemoteAddr)
+			notice, _ := json.Marshal(map[string]string{
+				"type":    "faucet_sameip",
+				"message": "Please help the developer — be fair, play with other players, do not try to cheat the game 🙏",
+			})
+			helper.Send(notice)
+		} else {
+			select {
+			case helper.FaucetRewardCh <- "heal":
+			default:
+			}
 		}
 	}
 

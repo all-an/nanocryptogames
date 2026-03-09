@@ -118,6 +118,10 @@ func main() {
 
 	// ── Faucet hub + wallet ───────────────────────────────────────────────────
 	faucetHub := game.NewFaucetHub()
+	if database != nil && database.FaucetDisableSameIPCheck(ctx) {
+		faucetHub.DisableSameIPCheck = true
+		log.Println("faucet: same-IP check disabled (faucet_disable_same_ip_check=true)")
+	}
 	var faucetWallet *nano.Wallet
 	var faucetAddr string
 	if faucetSeedHex := os.Getenv("FAUCET_SEED"); faucetSeedHex != "" {

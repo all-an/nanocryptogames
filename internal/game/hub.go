@@ -7,9 +7,10 @@ import "sync"
 // Hub manages the set of live rooms.
 // All room creation and teardown is serialised through the Hub mutex.
 type Hub struct {
-	mu       sync.Mutex
-	rooms    map[string]*Room
-	roomMode string // mode passed to every new Room ("paid" or "faucet")
+	mu                   sync.Mutex
+	rooms                map[string]*Room
+	roomMode             string // mode passed to every new Room ("paid" or "faucet")
+	DisableSameIPCheck   bool   // when true, same-IP kills/heals still earn faucet rewards
 }
 
 // RoomSummary is a lightweight snapshot of a room used for the lobby listing.
@@ -57,6 +58,7 @@ func (h *Hub) JoinRoom(roomID string, p *Player) *Room {
 	r, ok := h.rooms[roomID]
 	if !ok {
 		r = NewRoom(roomID, h.roomMode)
+		r.DisableSameIPCheck = h.DisableSameIPCheck
 		h.rooms[roomID] = r
 		go r.Run()
 	}
