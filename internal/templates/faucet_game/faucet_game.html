@@ -12,6 +12,7 @@
     <div class="game-wrap">
       <div class="game-header">
         <span class="room-label">Room: <strong>{{.RoomID}}</strong></span>
+        <span id="ammo-badge" class="ammo-badge">🔫 10</span>
         <div class="game-header-actions">
           <span id="faucet-earned" class="faucet-earned-badge hidden">Ӿ Earned: 0.000000</span>
           <button id="donate-faucet-btn" class="donate-header-btn">♡ Donate Faucet</button>
@@ -24,7 +25,7 @@
         data-faucet-address="{{.FaucetAddress}}"
         width="1000" height="680"></canvas>
 
-      <p class="controls-hint">Move: WASD / arrows or click &nbsp;·&nbsp; Stand next to a teammate to heal them &nbsp;·&nbsp; Each kill or heal earns <strong>0.00001 XNO</strong></p>
+      <p class="controls-hint">Move: WASD / arrows &nbsp;·&nbsp; Click to shoot &nbsp;·&nbsp; <kbd style="background:#2a2a3e;border:1px solid #555;border-radius:3px;padding:0 5px;font-size:0.85em;">R</kbd> to reload (5s) &nbsp;·&nbsp; Stand next to a teammate to heal &nbsp;·&nbsp; Each kill or heal earns <strong>0.00001 XNO</strong></p>
     </div>
 
   </div>
@@ -95,6 +96,11 @@
       <p class="modal-sub" style="margin-top:8px;">Go back to the lobby and enter your address to earn.</p>
       <button id="no-address-close" class="btn-secondary" style="margin-top:12px;">Got it</button>
     </div>
+  </div>
+
+  <!-- Reload popup — shown when player tries to shoot with 0 ammo -->
+  <div id="reload-popup" class="reload-popup hidden">
+    Out of ammo — press <kbd>R</kbd> to reload
   </div>
 
   <!-- Fair-play reminder modal -->

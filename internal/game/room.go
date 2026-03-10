@@ -290,6 +290,19 @@ func (r *Room) applyShoot(input Input) {
 	target.Health -= 50
 	isKill := target.Health == 0
 
+	// After a kill, check whether every player on the target's team is now dead.
+	// The round only ends when the entire team is eliminated.
+	teamWiped := false
+	if isKill {
+		teamWiped = true
+		for _, p := range r.players {
+			if p.Team == target.Team && p.Health > 0 {
+				teamWiped = false
+				break
+			}
+		}
+	}
+
 	// Broadcast the shot event so clients can animate the bullet.
 	evt, _ := json.Marshal(shotEvent{
 		Type:      "shot",
@@ -300,10 +313,14 @@ func (r *Room) applyShoot(input Input) {
 		p.Send(evt)
 	}
 
-	// On a kill: award prize (paid) or signal faucet payout (faucet), then
-	// broadcast the round-over event. The round restarts after 3 seconds.
+	// On a kill: notify the victim, award prize, and signal faucet payout.
+	// Round-over is only broadcast when the whole team has been wiped.
 	var prizeXNO string
 	if isKill {
+		// Tell the killed player to show their death overlay.
+		diedMsg, _ := json.Marshal(map[string]string{"type": "died"})
+		target.Send(diedMsg)
+
 		if r.Mode != "faucet" {
 			prize := new(big.Int).Mul(r.shotCostRaw, big.NewInt(3))
 			shooter.BalanceRaw.Add(shooter.BalanceRaw, prize)
@@ -311,9 +328,7 @@ func (r *Room) applyShoot(input Input) {
 			prizeXNO = FormatXNO(r.shotCostRaw) // net gain = 1 × shot_cost
 		} else {
 			prizeXNO = faucetRewardXNO
-			// Signal the WS handler to send the real faucet payout.
-			// Guard: only pay when killer and victim come from different IPs
-			// so a player cannot farm rewards by killing their own alt tabs.
+			// Guard: only pay when killer and victim come from different IPs.
 			sameIP := !r.DisableSameIPCheck && shooter.RemoteAddr != "" && shooter.RemoteAddr == target.RemoteAddr
 			if sameIP {
 				log.Printf("faucet: same-IP kill blocked (IP %s) — set faucet_disable_same_ip_check=true in settings to allow", shooter.RemoteAddr)
@@ -330,13 +345,16 @@ func (r *Room) applyShoot(input Input) {
 			}
 		}
 
-		roundOver, _ := json.Marshal(roundOverEvent{
-			Type:     "roundover",
-			KillerID: input.PlayerID,
-			Prize:    prizeXNO,
-		})
-		for _, p := range r.players {
-			p.Send(roundOver)
+		// Broadcast round-over only when the entire target team is eliminated.
+		if teamWiped {
+			roundOver, _ := json.Marshal(roundOverEvent{
+				Type:     "roundover",
+				KillerID: input.PlayerID,
+				Prize:    prizeXNO,
+			})
+			for _, p := range r.players {
+				p.Send(roundOver)
+			}
 		}
 	}
 
@@ -348,8 +366,8 @@ func (r *Room) applyShoot(input Input) {
 		shooter.Send(balMsg)
 	}
 
-	// After a kill, restart the round after a 3-second grace period.
-	if isKill {
+	// Restart the round only once the whole team has been wiped.
+	if teamWiped {
 		go func() {
 			time.Sleep(3 * time.Second)
 			r.restartRound()
@@ -365,8 +383,8 @@ func (r *Room) applyHelp(input Input) {
 	defer r.mu.Unlock()
 
 	helper, ok := r.players[input.PlayerID]
-	if !ok || helper.Health < 100 {
-		return // only healthy players can give medical help
+	if !ok || helper.Health == 0 {
+		return // only living players (healthy or wounded) can give medical help
 	}
 
 	target, ok := r.players[input.TargetID]

@@ -1351,6 +1351,58 @@ canvas {
   padding: 4px 10px;
 }
 
+/* ── Ammo badge (game header) ── */
+
+.ammo-badge {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #f5a623;
+  background: rgba(245,166,35,0.12);
+  border: 1px solid rgba(245,166,35,0.35);
+  border-radius: 6px;
+  padding: 4px 10px;
+  min-width: 62px;
+  text-align: center;
+}
+.ammo-badge.empty {
+  color: #e05252;
+  background: rgba(224,82,82,0.12);
+  border-color: rgba(224,82,82,0.40);
+}
+.ammo-badge.reloading {
+  color: #888;
+  background: rgba(136,136,136,0.10);
+  border-color: rgba(136,136,136,0.30);
+}
+
+/* ── Reload popup ── */
+
+.reload-popup {
+  position: fixed;
+  top: 44%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #12121f;
+  border: 2px solid rgba(224,82,82,0.55);
+  border-radius: 10px;
+  padding: 14px 28px;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  z-index: 300;
+  pointer-events: none;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+}
+.reload-popup kbd {
+  background: #2a2a3e;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-family: monospace;
+  font-size: 0.95em;
+}
+
 /* Pre-selected team button highlight in the team picker modal */
 .btn-team-selected {
   outline: 2px solid #fff;

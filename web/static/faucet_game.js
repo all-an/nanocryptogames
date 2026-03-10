@@ -58,6 +58,67 @@ const bullets       = [];
 const healFlashes   = [];
 const wallImpacts   = [];
 
+// ── Ammunition ─────────────────────────────────────────────────────────────────
+
+const MAX_AMMO    = 10;
+const RELOAD_TIME = 5000; // ms
+
+const SHOT_COOLDOWN = 600; // ms between shots
+
+let ammo              = MAX_AMMO;
+let reloading         = false;
+let lastShotAt        = 0;
+let reloadTimer       = null;
+let reloadCountdown   = null;
+let reloadPopupTimer  = null;
+
+function updateAmmoBadge() {
+  const badge = document.getElementById("ammo-badge");
+  if (!badge) return;
+  if (reloading) return; // countdown loop owns the badge text while reloading
+  badge.textContent = `🔫 ${ammo}`;
+  badge.className   = "ammo-badge" + (ammo === 0 ? " empty" : "");
+}
+
+function showReloadPopup() {
+  const el = document.getElementById("reload-popup");
+  if (!el) return;
+  el.classList.remove("hidden");
+  clearTimeout(reloadPopupTimer);
+  reloadPopupTimer = setTimeout(() => el.classList.add("hidden"), 2000);
+}
+
+function startReload() {
+  if (reloading) return;
+  reloading = true;
+  document.getElementById("reload-popup")?.classList.add("hidden");
+
+  const badge = document.getElementById("ammo-badge");
+  let remaining = Math.ceil(RELOAD_TIME / 1000);
+
+  function tick() {
+    if (!reloading) return;
+    if (badge) { badge.textContent = `⟳ ${remaining}s`; badge.className = "ammo-badge reloading"; }
+    remaining--;
+    if (remaining > 0) reloadCountdown = setTimeout(tick, 1000);
+  }
+  tick();
+
+  reloadTimer = setTimeout(() => {
+    reloading = false;
+    ammo = MAX_AMMO;
+    updateAmmoBadge();
+  }, RELOAD_TIME);
+}
+
+function resetAmmo() {
+  clearTimeout(reloadTimer);
+  clearTimeout(reloadCountdown);
+  reloading = false;
+  ammo = MAX_AMMO;
+  updateAmmoBadge();
+}
+
 // ── Path helpers ───────────────────────────────────────────────────────────────
 
 // computePath uses BFS (8-directional) to find the shortest path around barriers.
@@ -164,6 +225,7 @@ ws.onmessage = (event) => {
   } else if (msg.type === "newround") {
     hideRoundOver();
     document.getElementById("death-overlay").classList.add("hidden");
+    resetAmmo();
 
   } else if (msg.type === "died") {
     document.getElementById("death-overlay").classList.remove("hidden");
@@ -284,6 +346,7 @@ document.addEventListener("keydown", (e) => {
     case "ArrowRight": case "d": gx++; break;
     case "ArrowUp":    case "w": gy--; break;
     case "ArrowDown":  case "s": gy++; break;
+    case "r": case "R": startReload(); return;
     default: return;
   }
   e.preventDefault();
@@ -313,21 +376,29 @@ canvas.addEventListener("click", (e) => {
     return;
   }
 
+  // Ammo check — block shot if reloading, empty, or within cooldown.
+  if (reloading) return;
+  if (ammo === 0) { showReloadPopup(); return; }
+  const now = Date.now();
+  if (now - lastShotAt < SHOT_COOLDOWN) return;
+  lastShotAt = now;
+
   const myV = playerVisuals[myID];
   if (myV) {
     const clickPx = gx * CELL + CELL / 2, clickPy = gy * CELL + CELL / 2;
     const edge = extendRayToEdge(myV.px, myV.py, clickPx, clickPy);
 
     const hit = enemyOnRay(myV.px, myV.py, edge.x, edge.y);
-    // If the ray hits an enemy, stop the bullet at the sprite surface.
-    // Otherwise let it travel to the canvas edge.
     const toPx = hit ? hit.hitPx : edge.x;
     const toPy = hit ? hit.hitPy : edge.y;
     const dist = Math.sqrt((toPx - myV.px) ** 2 + (toPy - myV.py) ** 2);
-    const duration = Math.max(100, dist / 2); // ~2 px/ms travel speed
+    const duration = Math.max(100, dist / 2);
     bullets.push({ fromPx: myV.px, fromPy: myV.py, toPx, toPy,
                    startTime: performance.now(), duration,
                    spawnImpactOnEnd: !!hit });
+
+    ammo--;
+    updateAmmoBadge();
 
     if (hit) setTimeout(() => sendShoot(hit.player.id), duration);
   }
@@ -472,7 +543,7 @@ function drawPlayer(player, px, py) {
   ctx.stroke();
   ctx.fillStyle = "#ffffff"; ctx.font = "bold 15px system-ui";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText(incap || dead ? "✕" : "Ӿ", px, py);
+  ctx.fillText(dead ? "✕" : "Ӿ", px, py);
   ctx.restore();
   drawHealthBar(px, py - r - 8, player.health);
   if (player.nickname) {
@@ -485,6 +556,7 @@ function drawPlayer(player, px, py) {
     ctx.restore();
   }
 }
+
 
 function drawHealthBar(cx, cy, health) {
   const w = CELL - 4, h = 4, x = cx - w / 2;
