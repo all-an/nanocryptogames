@@ -38,8 +38,10 @@ type FaucetSender struct {
 	mu             sync.Mutex
 	rpc            *nano.Client
 	wallet         *nano.Wallet
-	cachedWork     string // pre-computed PoW for the next block
-	cachedFrontier string // frontier the cached work was computed for
+	cachedWork     string             // pre-computed PoW for the next block
+	cachedFrontier string             // frontier the cached work was computed for
+	cancelPreCache context.CancelFunc // cancels any in-flight pre-cache mining
+	preCacheGen    int                // incremented each time a new pre-cache starts
 }
 
 // NewFaucetSender creates a FaucetSender. wallet may be nil when FAUCET_SEED is unset.
@@ -66,8 +68,17 @@ func (s *FaucetSender) Init() {
 	if !s.IsConfigured() {
 		return
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	s.mu.Lock()
+	if s.cancelPreCache != nil {
+		s.cancelPreCache()
+	}
+	s.cancelPreCache = cancel
+	s.preCacheGen++
+	myGen := s.preCacheGen
+	s.mu.Unlock()
+
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 		defer cancel()
 		info, err := s.rpc.GetAccountInfo(ctx, s.wallet.Address)
 		if err != nil {
@@ -75,48 +86,69 @@ func (s *FaucetSender) Init() {
 			return
 		}
 		work, err := s.rpc.GenerateWork(ctx, info.Frontier)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if myGen != s.preCacheGen {
+			return // superseded by a newer pre-cache or send
+		}
+		s.cancelPreCache = nil
 		if err != nil {
 			log.Printf("faucet sender init: work: %v", err)
 			return
 		}
-		s.mu.Lock()
-		if s.cachedFrontier == "" { // don't overwrite a more recent cache
+		if s.cachedFrontier == "" {
 			s.cachedWork = work
 			s.cachedFrontier = info.Frontier
+			log.Printf("faucet sender: startup pre-cached work for frontier %s…", info.Frontier[:8])
 		}
-		s.mu.Unlock()
-		log.Printf("faucet sender: startup pre-cached work for frontier %s…", info.Frontier[:8])
 	}()
 }
 
 // Send executes a serialised send, using any pre-cached PoW for speed.
-// After a successful send it kicks off background PoW for the next block.
-// ctx controls the overall deadline; callers should use a long timeout (≥300s)
-// to give CPU PoW enough time on slow servers.
+// If no work is cached, any in-flight pre-cache mining is cancelled first so
+// the send's own mining has the CPU to itself — preventing two goroutines from
+// competing on the same CPU for the same frontier.
+// After a successful send, background PoW is pre-computed for the next block.
+// ctx controls the overall deadline; use a timeout ≥300s on slow servers.
 func (s *FaucetSender) Send(ctx context.Context, toAddress, amountRaw string) (string, error) {
 	s.mu.Lock()
+	// If the pre-cache hasn't produced work yet, cancel it so our mining runs solo.
+	if s.cachedWork == "" && s.cancelPreCache != nil {
+		s.cancelPreCache()
+		s.cancelPreCache = nil
+	}
 	preWork := s.cachedWork
 	s.cachedWork = ""
 	s.cachedFrontier = ""
 	hash, err := nano.SendFast(ctx, s.rpc, s.wallet, toAddress, amountRaw, preWork)
+	s.mu.Unlock()
+
 	if err == nil {
 		newFrontier := hash
+		preCtx, preCancel := context.WithTimeout(context.Background(), 300*time.Second)
+		s.mu.Lock()
+		s.cancelPreCache = preCancel
+		s.preCacheGen++
+		myGen := s.preCacheGen
+		s.mu.Unlock()
 		go func() {
-			workCtx, wCancel := context.WithTimeout(context.Background(), 300*time.Second)
-			defer wCancel()
-			nextWork, wErr := s.rpc.GenerateWork(workCtx, newFrontier)
+			defer preCancel()
+			nextWork, wErr := s.rpc.GenerateWork(preCtx, newFrontier)
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if myGen != s.preCacheGen {
+				return // superseded
+			}
+			s.cancelPreCache = nil
 			if wErr == nil {
-				s.mu.Lock()
 				s.cachedWork = nextWork
 				s.cachedFrontier = newFrontier
-				s.mu.Unlock()
 				log.Printf("faucet: pre-cached work for frontier %s…", newFrontier[:8])
 			} else {
 				log.Printf("faucet: pre-cache work failed: %v", wErr)
 			}
 		}()
 	}
-	s.mu.Unlock()
 	return hash, err
 }
 

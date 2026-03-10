@@ -183,25 +183,27 @@ func (c *Client) GenerateWork(ctx context.Context, hash string) (string, error) 
 
 	ch := make(chan result, 2)
 
-	// Remote attempt: GPU peers via RPC node (fast when available).
+	// Remote attempt: try with GPU peers first, fall back to node CPU on 429.
 	go func() {
-		var r struct {
-			Work  string        `json:"work"`
-			Error rpcErrorField `json:"error"`
-		}
-		err := c.call(raceCtx, map[string]any{
-			"action":    "work_generate",
-			"hash":      hash,
-			"use_peers": true,
-		}, &r)
-		if err == nil && r.Error == "" && r.Work != "" {
-			ch <- result{r.Work, nil}
-		} else if err != nil {
-			log.Printf("nano: remote work_generate failed: %v", err)
-		} else if r.Error != "" {
-			log.Printf("nano: remote work_generate RPC error: %s", r.Error)
-		} else {
-			log.Printf("nano: remote work_generate returned empty work")
+		for _, usePeers := range []bool{true, false} {
+			var r struct {
+				Work  string        `json:"work"`
+				Error rpcErrorField `json:"error"`
+			}
+			err := c.call(raceCtx, map[string]any{
+				"action":    "work_generate",
+				"hash":      hash,
+				"use_peers": usePeers,
+			}, &r)
+			if err == nil && r.Error == "" && r.Work != "" {
+				ch <- result{r.Work, nil}
+				return
+			}
+			if err != nil {
+				log.Printf("nano: work_generate peers=%v error: %v", usePeers, err)
+			} else {
+				log.Printf("nano: work_generate peers=%v RPC error: %s", usePeers, r.Error)
+			}
 		}
 	}()
 
