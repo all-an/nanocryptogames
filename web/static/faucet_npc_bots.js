@@ -51,7 +51,10 @@ const nanoAddress = new URLSearchParams(location.search).get("address") || "";
 let totalEarned = 0; // count of rewards paid this session (display only)
 
 async function claimBotKillReward() {
-  if (!nanoAddress) return;
+  if (!nanoAddress) {
+    showBotToast("Add a Nano address in the lobby to earn rewards.", false);
+    return;
+  }
   try {
     const res = await fetch("/faucet/bots/reward", {
       method: "POST",
@@ -69,8 +72,13 @@ async function claimBotKillReward() {
       }
     } else if (res.status === 429) {
       showBotToast("Daily faucet limit reached.", false);
+    } else {
+      const text = await res.text().catch(() => "");
+      showBotToast(`Reward failed: ${text || res.status}`, false);
     }
-  } catch { /* network errors are silent */ }
+  } catch (err) {
+    showBotToast(`Reward error: ${err.message}`, false);
+  }
 }
 
 let botToastTimer = null;
