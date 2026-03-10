@@ -27,6 +27,9 @@
       <ul class="room-list" id="room-list">
         <li class="room-list-empty">No rooms open yet — create one above</li>
       </ul>
+      <div class="room-list-bots">
+        <button class="btn-play-bots" onclick="showBotsPicker()">🤖 Play with Bots</button>
+      </div>
     </div>
   </div>
 
@@ -151,11 +154,7 @@
     function renderRooms(rooms) {
       const list = document.getElementById("room-list");
       if (!rooms || rooms.length === 0) {
-        list.innerHTML = `
-          <li class="room-list-empty">No rooms open yet — create one above</li>
-          <li class="room-list-bots">
-            <button class="btn-play-bots" onclick="showBotsPicker()">🤖 Play with Bots</button>
-          </li>`;
+        list.innerHTML = `<li class="room-list-empty">No rooms open yet — create one above</li>`;
         return;
       }
       list.innerHTML = rooms.map(r => `
