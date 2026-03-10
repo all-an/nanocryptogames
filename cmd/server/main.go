@@ -111,6 +111,8 @@ func main() {
 
 	// ── Templates ────────────────────────────────────────────────────────────
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
+	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_game/*.html"))
+	tmpl = template.Must(tmpl.ParseGlob("internal/templates/paid_game/*.html"))
 
 	// ── Hub + WS handler (paid game) ─────────────────────────────────────────
 	hub := game.NewHub()

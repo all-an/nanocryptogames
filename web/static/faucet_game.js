@@ -202,14 +202,6 @@ function sendMove(gx, gy) {
 }
 function sendShoot(targetID) {
   if (ws.readyState !== WebSocket.OPEN) return;
-  // Spawn the bullet immediately so it animates even when the server blocks the shot.
-  // The "shot" server event is skipped for the local shooter to avoid duplicates.
-  const sv = playerVisuals[myID];
-  const tv = playerVisuals[targetID];
-  if (sv && tv) {
-    bullets.push({ fromPx: sv.px, fromPy: sv.py, toPx: tv.px, toPy: tv.py,
-                   startTime: performance.now(), duration: 200 });
-  }
   ws.send(JSON.stringify({ action: "shoot", targetID }));
 }
 function sendHelp(targetID) {
@@ -229,6 +221,51 @@ function isReachable(ox, oy, gx, gy) {
 }
 function isAdjacent(ax, ay, bx, by) {
   return Math.abs(ax - bx) <= 1 && Math.abs(ay - by) <= 1 && !(ax === bx && ay === by);
+}
+// extendRayToEdge extends the ray from (fromPx,fromPy) through (toPx,toPy)
+// until it hits the canvas boundary. Returns the endpoint pixel position.
+function extendRayToEdge(fromPx, fromPy, toPx, toPy) {
+  const dx = toPx - fromPx, dy = toPy - fromPy;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return { x: toPx, y: toPy };
+  const dirX = dx / len, dirY = dy / len;
+  let t = Infinity;
+  if (dirX > 0) t = Math.min(t, (canvas.width  - fromPx) / dirX);
+  else if (dirX < 0) t = Math.min(t, -fromPx / dirX);
+  if (dirY > 0) t = Math.min(t, (canvas.height - fromPy) / dirY);
+  else if (dirY < 0) t = Math.min(t, -fromPy / dirY);
+  return { x: fromPx + dirX * t, y: fromPy + dirY * t };
+}
+
+// enemyOnRay returns { player, hitPx, hitPy } for the first alive enemy whose
+// sprite the ray intersects, using ray-circle intersection against each player's
+// animated pixel position. hitPx/hitPy is the exact entry point on the sprite edge.
+// Sprite radius matches drawPlayer: CELL/2 - 2 = 18px.
+function enemyOnRay(fromPx, fromPy, edgePx, edgePy) {
+  const dx = edgePx - fromPx, dy = edgePy - fromPy;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return null;
+  const dirX = dx / len, dirY = dy / len;
+  const r = CELL / 2 - 2; // sprite radius
+
+  let best = null, bestT = Infinity;
+  for (const p of state.players || []) {
+    if (p.id === myID || p.team === myTeam || p.health === 0) continue;
+    const v = playerVisuals[p.id];
+    if (!v) continue;
+    const ocX = v.px - fromPx, ocY = v.py - fromPy;
+    const tClosest = ocX * dirX + ocY * dirY;
+    if (tClosest < 0 || tClosest > len) continue;
+    const perpX = ocX - tClosest * dirX, perpY = ocY - tClosest * dirY;
+    const perp2 = perpX * perpX + perpY * perpY;
+    if (perp2 <= r * r) {
+      // Entry point on the sprite surface (front face of the circle).
+      const tHit = tClosest - Math.sqrt(r * r - perp2);
+      if (tHit < bestT) { bestT = tHit; best = p; }
+    }
+  }
+  if (!best) return null;
+  return { player: best, hitPx: fromPx + dirX * bestT, hitPy: fromPy + dirY * bestT };
 }
 
 // ── Keyboard ───────────────────────────────────────────────────────────────────
@@ -267,15 +304,33 @@ canvas.addEventListener("click", (e) => {
   const rect = canvas.getBoundingClientRect();
   const gx = Math.floor((e.clientX - rect.left) / CELL);
   const gy = Math.floor((e.clientY - rect.top) / CELL);
-  if (isBarrier(gx, gy)) return;
-  if (!isReachable(me.gx, me.gy, gx, gy)) return;
-  const occupant      = playerAtCell(gx, gy);
-  const isOtherPlayer = occupant && occupant.id !== myID;
-  const isEnemy       = isOtherPlayer && occupant.team !== myTeam && occupant.health > 0;
-  const canHelp       = isOtherPlayer && occupant.team === myTeam &&
-                        occupant.health === 50 && isAdjacent(me.gx, me.gy, gx, gy);
-  pending = { gx, gy, targetID: isOtherPlayer ? occupant.id : null, canHelp };
-  showModal({ isEnemy, canHelp });
+
+  // Clicking an adjacent incapacitated teammate heals them.
+  const occupant = playerAtCell(gx, gy);
+  if (occupant && occupant.id !== myID && occupant.team === myTeam &&
+      occupant.health === 50 && isAdjacent(me.gx, me.gy, gx, gy)) {
+    sendHelp(occupant.id);
+    return;
+  }
+
+  const myV = playerVisuals[myID];
+  if (myV) {
+    const clickPx = gx * CELL + CELL / 2, clickPy = gy * CELL + CELL / 2;
+    const edge = extendRayToEdge(myV.px, myV.py, clickPx, clickPy);
+
+    const hit = enemyOnRay(myV.px, myV.py, edge.x, edge.y);
+    // If the ray hits an enemy, stop the bullet at the sprite surface.
+    // Otherwise let it travel to the canvas edge.
+    const toPx = hit ? hit.hitPx : edge.x;
+    const toPy = hit ? hit.hitPy : edge.y;
+    const dist = Math.sqrt((toPx - myV.px) ** 2 + (toPy - myV.py) ** 2);
+    const duration = Math.max(100, dist / 2); // ~2 px/ms travel speed
+    bullets.push({ fromPx: myV.px, fromPy: myV.py, toPx, toPy,
+                   startTime: performance.now(), duration,
+                   spawnImpactOnEnd: !!hit });
+
+    if (hit) setTimeout(() => sendShoot(hit.player.id), duration);
+  }
 });
 
 // ── Modal ──────────────────────────────────────────────────────────────────────
@@ -377,6 +432,14 @@ function drawGrid() {
   for (let row = 0; row <= ROWS; row++) {
     ctx.beginPath(); ctx.moveTo(0, row * CELL); ctx.lineTo(COLS * CELL, row * CELL); ctx.stroke();
   }
+  // Centre dividing line between red (left) and blue (right) halves.
+  const midX = (COLS / 2) * CELL;
+  ctx.save();
+  ctx.strokeStyle = "rgba(180,180,220,0.25)";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath(); ctx.moveTo(midX, 0); ctx.lineTo(midX, ROWS * CELL); ctx.stroke();
+  ctx.restore();
 }
 
 function drawReachableArea(me) {
@@ -488,7 +551,12 @@ function drawBullets() {
     }
     ctx.beginPath(); ctx.arc(bpx, bpy, 4, 0, Math.PI * 2);
     ctx.fillStyle = "#FFD700"; ctx.fill();
-    if (t >= 1) bullets.splice(i, 1); else i++;
+    if (t >= 1) {
+      if (b.spawnImpactOnEnd) {
+        wallImpacts.push({ px: b.toPx, py: b.toPy, startTime: performance.now(), duration: 300 });
+      }
+      bullets.splice(i, 1);
+    } else i++;
   }
 }
 

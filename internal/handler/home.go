@@ -46,5 +46,5 @@ func NewWelcomeHandler(tmpl *template.Template) *WelcomeHandler {
 }
 
 func (h *WelcomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.tmpl.ExecuteTemplate(w, "welcome.html", nil)
+	h.tmpl.ExecuteTemplate(w, "paid_welcome.html", nil)
 }

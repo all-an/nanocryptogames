@@ -46,7 +46,7 @@ func (h *GamePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
-	h.tmpl.ExecuteTemplate(w, "game.html", map[string]string{"RoomID": roomID})
+	h.tmpl.ExecuteTemplate(w, "paid_game.html", map[string]string{"RoomID": roomID})
 }
 
 // WSHandler upgrades HTTP connections to WebSocket and drives the player I/O pumps.

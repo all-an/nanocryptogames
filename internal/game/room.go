@@ -19,10 +19,14 @@ var defaultShotCostRaw, _ = new(big.Int).SetString("100000000000000000000000000"
 const faucetRewardXNO = "0.00001"
 
 // spawnPoints are fixed grid positions spread across the arena.
-var spawnPoints = [][2]int{
-	{1, 1}, {23, 1}, {12, 8},
-	{1, 15}, {23, 15}, {6, 5},
-	{18, 5}, {12, 15},
+// redSpawnPoints are fixed positions on the left side of the arena (GX ≤ 3).
+var redSpawnPoints = [][2]int{
+	{1, 1}, {1, 8}, {1, 15}, {2, 4}, {2, 12},
+}
+
+// blueSpawnPoints are fixed positions on the right side of the arena (GX ≥ 21).
+var blueSpawnPoints = [][2]int{
+	{23, 1}, {23, 8}, {23, 15}, {22, 4}, {22, 12},
 }
 
 // Input is a command sent by a player: "move", "shoot", or "help".
@@ -87,9 +91,8 @@ type Room struct {
 	inputCh            chan Input
 	done               chan struct{}
 	mu                 sync.RWMutex
-	playerCount        int      // total players ever joined; used for spawn assignment
-	redCount           int      // red-team players ever joined; used for colour assignment
-	blueCount          int      // blue-team players ever joined; used for colour assignment
+	redCount           int      // red-team players ever joined; used for colour and spawn assignment
+	blueCount          int      // blue-team players ever joined; used for colour and spawn assignment
 	shotCostRaw        *big.Int // cost per shot in raw Nano units (unused in faucet mode)
 }
 
@@ -138,18 +141,19 @@ func (r *Room) Join(p *Player) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	var spawn [2]int
 	if p.Team == "red" {
 		p.Color = redColorPalette[r.redCount%len(redColorPalette)]
+		spawn = redSpawnPoints[r.redCount%len(redSpawnPoints)]
 		r.redCount++
 	} else {
 		p.Color = blueColorPalette[r.blueCount%len(blueColorPalette)]
+		spawn = blueSpawnPoints[r.blueCount%len(blueSpawnPoints)]
 		r.blueCount++
 	}
 
-	spawn := spawnPoints[r.playerCount%len(spawnPoints)]
 	p.GX, p.GY = spawn[0], spawn[1]
 	p.SpawnGX, p.SpawnGY = spawn[0], spawn[1]
-	r.playerCount++
 
 	r.players[p.ID] = p
 }
@@ -262,8 +266,10 @@ func (r *Room) applyShoot(input Input) {
 		return
 	}
 
-	// Validate that the target is within shooting range (same radius as movement).
-	if !isValidMove(shooter.GX, shooter.GY, target.GX, target.GY) {
+	// In paid mode, validate that the target is within shooting range.
+	// In faucet mode the range cap is removed — any enemy on the map can be shot
+	// as long as line-of-sight is not blocked by a barrier.
+	if r.Mode != "faucet" && !isValidMove(shooter.GX, shooter.GY, target.GX, target.GY) {
 		r.mu.Unlock()
 		return
 	}

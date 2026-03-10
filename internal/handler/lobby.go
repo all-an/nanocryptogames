@@ -17,5 +17,5 @@ func NewLobbyHandler(tmpl *template.Template) *LobbyHandler {
 }
 
 func (h *LobbyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.tmpl.ExecuteTemplate(w, "lobby.html", nil)
+	h.tmpl.ExecuteTemplate(w, "paid_lobby.html", nil)
 }
