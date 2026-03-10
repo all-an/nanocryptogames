@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"sort"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -201,14 +202,25 @@ func (db *DB) FaucetPayoutsToday(ctx context.Context, ip string) (int, error) {
 	return count, err
 }
 
-// LogAccess inserts a row into access_log and increments the access_daily counter.
+// LogAccess records the first visit of the day from an IP on the landing page ("/").
+// Visits from the same IP on the same day are silently ignored (returns 0, nil).
 // Returns the new row's ID so the caller can later fill in the country.
 func (db *DB) LogAccess(ctx context.Context, ip, path string) (int64, error) {
 	var id int64
 	err := db.pool.QueryRow(ctx,
-		`INSERT INTO access_log (ip, path) VALUES ($1, $2) RETURNING id`,
+		`INSERT INTO access_log (ip, path)
+		 SELECT $1, $2
+		 WHERE NOT EXISTS (
+		   SELECT 1 FROM access_log
+		   WHERE ip = $1 AND accessed_at::date = CURRENT_DATE
+		 )
+		 RETURNING id`,
 		ip, path,
 	).Scan(&id)
+	if err == pgx.ErrNoRows {
+		// IP already logged today — not an error.
+		return 0, nil
+	}
 	if err != nil {
 		return 0, err
 	}

@@ -28,8 +28,8 @@ Go to the service's **Environment** tab and add:
 | Variable | Description | Example |
 |---|---|---|
 | `DATABASE_URL` | Internal DB URL from step 1 | `postgres://...` |
-| `NANO_RPC_PRIMARY_URL` | Primary public Nano node | `https://nanoslo.0x.no` |
-| `NANO_RPC_FALLBACK_URL` | Fallback public Nano node | `https://node.somenano.com` |
+| `NANO_RPC_PRIMARY_URL` | Primary public Nano node | `https://rpc.nano.to` or `https://nanoslo.0x.no` |
+| `NANO_RPC_FALLBACK_URL` | Fallback public Nano node | `https://rpc.nano.to` or `https://us-1.nano.to` |
 | `NANO_MASTER_SEED` | 64-char hex master seed (keep secret) | see below |
 | `FAUCET_SEED` | 64-char hex faucet wallet seed | see below |
 

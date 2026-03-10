@@ -212,12 +212,12 @@ func closedMiddleware(database *db.DB, tmpl *template.Template, next http.Handle
 // it never slows down the response.
 func accessLogMiddleware(database *db.DB, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if database != nil && !strings.HasPrefix(r.URL.Path, "/static/") {
+		if database != nil && r.URL.Path == "/" {
 			ip := realIP(r)
 			id, err := database.LogAccess(r.Context(), ip, r.URL.Path)
 			if err != nil {
 				log.Printf("access_log insert: %v", err)
-			} else {
+			} else if id != 0 {
 				go func() {
 					country := geoCountry(ip)
 					if country == "" {
