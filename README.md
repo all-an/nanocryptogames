@@ -1,6 +1,6 @@
-# Nano The Multiplayer Game
+# Nano Crypto Games
 
-A real-money multiplayer browser game powered by Go and Nano (XNO) cryptocurrency.
+A collection of real-money browser games powered by Go and the Nano (XNO) cryptocurrency.
 
 ## Requirements
 

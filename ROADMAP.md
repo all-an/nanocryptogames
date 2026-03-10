@@ -1,4 +1,4 @@
-# Nano The Multiplayer Game Game — Roadmap
+# Nano Crypto Games — Roadmap
 
 ## Project Overview
 

@@ -149,7 +149,7 @@ func main() {
 	mux.Handle("GET /static/",
 		http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
-	mux.Handle("GET /", handler.NewLandingHandler(tmpl, database))
+	mux.Handle("GET /", handler.NewLandingHandler(tmpl, database, faucetAddr))
 	mux.Handle("GET /welcome", handler.NewWelcomeHandler(tmpl))
 	mux.Handle("GET /lobby", handler.NewLobbyHandler(tmpl))
 

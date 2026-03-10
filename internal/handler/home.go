@@ -10,13 +10,14 @@ import (
 
 // LandingHandler serves the top-level mode-selector page.
 type LandingHandler struct {
-	tmpl *template.Template
-	db   *db.DB
+	tmpl        *template.Template
+	db          *db.DB
+	faucetAddr  string
 }
 
 // NewLandingHandler wires up the landing template and optional DB for settings.
-func NewLandingHandler(tmpl *template.Template, database *db.DB) *LandingHandler {
-	return &LandingHandler{tmpl: tmpl, db: database}
+func NewLandingHandler(tmpl *template.Template, database *db.DB, faucetAddr string) *LandingHandler {
+	return &LandingHandler{tmpl: tmpl, db: database, faucetAddr: faucetAddr}
 }
 
 func (h *LandingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -30,8 +31,9 @@ func (h *LandingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		val, _ := h.db.Setting(r.Context(), "disable_paid")
 		disablePaid = val == "true"
 	}
-	h.tmpl.ExecuteTemplate(w, "landing.html", map[string]bool{
-		"DisablePaid": disablePaid,
+	h.tmpl.ExecuteTemplate(w, "landing.html", map[string]any{
+		"DisablePaid":   disablePaid,
+		"FaucetAddress": h.faucetAddr,
 	})
 }
 

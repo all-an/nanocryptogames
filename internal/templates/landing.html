@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Nano The Multiplayer Game</title>
+  <title>Nano Crypto Games</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="welcome">
     <header class="welcome-header">
-      <h1 class="welcome-title">Ӿ Nano The Multiplayer Game</h1>
-      <p class="welcome-tagline">A real-money grid shooter powered by Nano (XNO)</p>
+      <h1 class="welcome-title">Ӿ Nano Crypto Games</h1>
+      <p class="welcome-tagline">A collection of real-money browser games powered by Go and the Nano (XNO)</p>
       <p class="welcome-tip">💡 Kill enemies or heal teammates to earn <strong>0.00001 XNO</strong> &nbsp;·&nbsp; Stand next to a teammate to heal them</p>
     </header>
 
@@ -22,10 +22,25 @@
         <a href="/faucet" class="welcome-play-btn welcome-play-btn--sm" style="opacity:1;pointer-events:auto;background:#2a7a4a;">Play Faucet Multiplayer</a>
       </div>
 
+      {{if .FaucetAddress}}
+      <div class="welcome-card">
+        <div class="welcome-card-icon">❤️</div>
+        <h2>Support the faucet</h2>
+        <p>The faucet depends on community donations. Scan the QR or copy the address and send any amount of XNO to keep the rewards flowing.</p>
+        <img
+          src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=6&data=nano:{{.FaucetAddress}}"
+          alt="Faucet donation QR code"
+          width="160" height="160"
+          style="border-radius:8px;margin:4px 0;"
+        >
+        <p style="font-size:0.72rem;color:#555;word-break:break-all;">{{.FaucetAddress}}</p>
+      </div>
+      {{end}}
+
       <!--
       <div class="welcome-card mode-card mode-card--paid">
         <div class="welcome-card-icon">💰</div>
-        <h2>Nano The Multiplayer Game</h2>
+        <h2>Nano Crypto Games</h2>
         <p>Deposit real XNO, shoot enemies, earn rewards. Every kill pays out instantly on-chain.</p>
         {{if .DisablePaid}}
         <span class="welcome-play-btn welcome-play-btn--sm welcome-play-btn--disabled">Coming Soon</span>
