@@ -165,7 +165,7 @@ func main() {
 	mux.Handle("GET /faucet/api/rooms", handler.NewRoomsHandler(faucetHub))
 	mux.Handle("GET /faucet/ws/{roomID}", faucetWSHandler)
 	mux.Handle("GET /faucet/bots", handler.NewFaucetBotsPageHandler(tmpl, faucetAddr))
-	mux.Handle("POST /faucet/bots/reward", handler.NewFaucetBotsRewardHandler(database, rpcClient, faucetWallet))
+	mux.Handle("POST /faucet/bots/reward", handler.NewFaucetBotsRewardHandler(database, rpcClient, faucetWallet, faucetWSHandler.SendMu()))
 
 	rpcTestHandler := handler.NewRPCTestHandler(tmpl, database, rpcClient, masterSeed)
 	mux.Handle("GET /rpc-test", rpcTestHandler)

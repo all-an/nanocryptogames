@@ -81,21 +81,23 @@ func (h *FaucetBotsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 }
 
 // FaucetBotsRewardHandler pays a faucet reward when a player kills a bot.
-// Uses the same daily-per-IP limit as the main faucet game.
+// Uses the same daily-per-IP limit and shared send mutex as the main faucet game.
 type FaucetBotsRewardHandler struct {
 	db           *db.DB
 	rpc          *nano.Client
 	faucetWallet *nano.Wallet
-	sendMu       sync.Mutex
+	sendMu       *sync.Mutex // shared with FaucetWSHandler — Nano blocks must be sequential
 	testMode     bool
 }
 
 // NewFaucetBotsRewardHandler wires up the bot kill reward handler.
-func NewFaucetBotsRewardHandler(database *db.DB, rpc *nano.Client, wallet *nano.Wallet) *FaucetBotsRewardHandler {
+// sendMu must be the same mutex used by FaucetWSHandler to prevent concurrent sends.
+func NewFaucetBotsRewardHandler(database *db.DB, rpc *nano.Client, wallet *nano.Wallet, sendMu *sync.Mutex) *FaucetBotsRewardHandler {
 	return &FaucetBotsRewardHandler{
 		db:           database,
 		rpc:          rpc,
 		faucetWallet: wallet,
+		sendMu:       sendMu,
 		testMode:     os.Getenv("FAUCET_TEST_MODE") == "true",
 	}
 }
@@ -186,8 +188,8 @@ type FaucetWSHandler struct {
 	hub          *game.Hub
 	db           *db.DB
 	rpc          *nano.Client
-	faucetWallet *nano.Wallet // nil when FAUCET_SEED is not configured
-	sendMu       sync.Mutex  // serialises all sends from the faucet wallet
+	faucetWallet *nano.Wallet  // nil when FAUCET_SEED is not configured
+	sendMu       *sync.Mutex  // serialises all sends from the faucet wallet; shared with FaucetBotsRewardHandler
 	testMode     bool        // when true, bypass anti-abuse checks (FAUCET_TEST_MODE=true)
 
 	// Work pre-cache: after each send we kick off PoW for the next block in the
@@ -204,9 +206,14 @@ func NewFaucetWSHandler(hub *game.Hub, database *db.DB, rpc *nano.Client, wallet
 		db:           database,
 		rpc:          rpc,
 		faucetWallet: wallet,
+		sendMu:       &sync.Mutex{},
 		testMode:     os.Getenv("FAUCET_TEST_MODE") == "true",
 	}
 }
+
+// SendMu returns the shared send mutex so other handlers can serialise
+// Nano sends from the same faucet wallet.
+func (h *FaucetWSHandler) SendMu() *sync.Mutex { return h.sendMu }
 
 func (h *FaucetWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	roomID := r.PathValue("roomID")
