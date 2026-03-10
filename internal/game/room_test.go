@@ -7,7 +7,7 @@ import (
 )
 
 func TestRoom_JoinAssignsColorAndSpawn(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
@@ -20,7 +20,7 @@ func TestRoom_JoinAssignsColorAndSpawn(t *testing.T) {
 }
 
 func TestRoom_JoinAssignsDifferentColors(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	p1 := NewPlayer("p1", "test")
 	p2 := NewPlayer("p2", "test")
 	r.Join(p1)
@@ -32,7 +32,7 @@ func TestRoom_JoinAssignsDifferentColors(t *testing.T) {
 }
 
 func TestRoom_Empty(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	if !r.Empty() {
 		t.Error("new room should be empty")
 	}
@@ -50,7 +50,7 @@ func TestRoom_Empty(t *testing.T) {
 }
 
 func TestRoom_BroadcastState_sendsJSON(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
@@ -74,9 +74,10 @@ func TestRoom_BroadcastState_sendsJSON(t *testing.T) {
 }
 
 func TestRoom_ApplyInput_withinRadius(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
+	p.GX, p.GY = 5, 5 // place in centre so GX+5 stays within grid
 
 	// Move 5 squares right — exactly at the radius boundary.
 	target := p.GX + 5
@@ -87,9 +88,10 @@ func TestRoom_ApplyInput_withinRadius(t *testing.T) {
 }
 
 func TestRoom_ApplyInput_beyondRadius(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
+	p.GX, p.GY = 5, 5
 
 	startGX := p.GX
 	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 6, GY: p.GY})
@@ -99,19 +101,21 @@ func TestRoom_ApplyInput_beyondRadius(t *testing.T) {
 }
 
 func TestRoom_ApplyInput_diagonalWithinRadius(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
+	p.GX, p.GY = 5, 5
 
 	// (3,4) offset = Euclidean distance 5.0 — exactly on the boundary.
+	startGX := p.GX
 	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 3, GY: p.GY + 4})
-	if p.GX != spawnPoints[0][0]+3 {
+	if p.GX != startGX+3 {
 		t.Errorf("(3,4) diagonal move should be accepted (distance=5.0)")
 	}
 }
 
 func TestRoom_ApplyInput_sameCell(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
@@ -123,7 +127,7 @@ func TestRoom_ApplyInput_sameCell(t *testing.T) {
 }
 
 func TestRoom_ApplyInput_clampsToGrid(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
@@ -136,7 +140,7 @@ func TestRoom_ApplyInput_clampsToGrid(t *testing.T) {
 }
 
 func TestRoom_ApplyShoot_firstHitIncapacitates(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
 	target  := NewPlayer("target", "test")
 	r.Join(shooter)
@@ -155,7 +159,7 @@ func TestRoom_ApplyShoot_firstHitIncapacitates(t *testing.T) {
 }
 
 func TestRoom_ApplyShoot_secondHitKills(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
 	target  := NewPlayer("target", "test")
 	r.Join(shooter)
@@ -174,8 +178,8 @@ func TestRoom_ApplyShoot_secondHitKills(t *testing.T) {
 	}
 }
 
-func TestRoom_ApplyShoot_incapacitatedShooterCannotShoot(t *testing.T) {
-	r := NewRoom("test")
+func TestRoom_ApplyShoot_deadShooterCannotShoot(t *testing.T) {
+	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
 	target  := NewPlayer("target", "test")
 	r.Join(shooter)
@@ -185,18 +189,18 @@ func TestRoom_ApplyShoot_incapacitatedShooterCannotShoot(t *testing.T) {
 	target.Team  = "blue"
 	shooter.GX, shooter.GY = 5, 5
 	target.GX,  target.GY  = 6, 5
-	shooter.Health = 50 // shooter is incapacitated
+	shooter.Health = 0 // shooter is dead
 
 	startHealth := target.Health
 	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
 
 	if target.Health != startHealth {
-		t.Error("incapacitated shooter should not be able to shoot")
+		t.Error("dead shooter should not be able to shoot")
 	}
 }
 
 func TestRoom_ApplyShoot_outOfRangeRejected(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
 	target  := NewPlayer("target", "test")
 	r.Join(shooter)
@@ -216,7 +220,7 @@ func TestRoom_ApplyShoot_outOfRangeRejected(t *testing.T) {
 }
 
 func TestRoom_ApplyShoot_teammateCannotBeShot(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
 	target  := NewPlayer("target", "test")
 	r.Join(shooter)
@@ -235,22 +239,23 @@ func TestRoom_ApplyShoot_teammateCannotBeShot(t *testing.T) {
 	}
 }
 
-func TestRoom_ApplyMove_incapacitatedPlayerCannotMove(t *testing.T) {
-	r := NewRoom("test")
+func TestRoom_ApplyMove_deadPlayerCannotMove(t *testing.T) {
+	r := NewRoom("test", "paid")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
+	p.GX, p.GY = 5, 5
 
-	p.Health = 50 // incapacitated
+	p.Health = 0 // dead
 	startGX := p.GX
 	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 1, GY: p.GY})
 
 	if p.GX != startGX {
-		t.Error("incapacitated player should not be able to move")
+		t.Error("dead player should not be able to move")
 	}
 }
 
 func TestRoom_ApplyHelp_adjacentTeammateRestoresHealth(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	helper := NewPlayer("helper", "test")
 	target := NewPlayer("target", "test")
 	r.Join(helper)
@@ -270,7 +275,7 @@ func TestRoom_ApplyHelp_adjacentTeammateRestoresHealth(t *testing.T) {
 }
 
 func TestRoom_ApplyHelp_notAdjacentRejected(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	helper := NewPlayer("helper", "test")
 	target := NewPlayer("target", "test")
 	r.Join(helper)
@@ -290,7 +295,7 @@ func TestRoom_ApplyHelp_notAdjacentRejected(t *testing.T) {
 }
 
 func TestRoom_ApplyHelp_healthyTargetRejected(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	helper := NewPlayer("helper", "test")
 	target := NewPlayer("target", "test")
 	r.Join(helper)
@@ -309,8 +314,8 @@ func TestRoom_ApplyHelp_healthyTargetRejected(t *testing.T) {
 	}
 }
 
-func TestRoom_ApplyHelp_incapacitatedHelperCannotHelp(t *testing.T) {
-	r := NewRoom("test")
+func TestRoom_ApplyHelp_woundedHelperCanHelp(t *testing.T) {
+	r := NewRoom("test", "paid")
 	helper := NewPlayer("helper", "test")
 	target := NewPlayer("target", "test")
 	r.Join(helper)
@@ -320,18 +325,18 @@ func TestRoom_ApplyHelp_incapacitatedHelperCannotHelp(t *testing.T) {
 	target.Team = "blue"
 	helper.GX, helper.GY = 5, 5
 	target.GX, target.GY = 6, 5
-	helper.Health = 50 // helper is also incapacitated
+	helper.Health = 50 // helper is wounded but still alive — should be able to help
 	target.Health = 50
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
 
-	if target.Health != 50 {
-		t.Error("incapacitated helper should not be able to give medical help")
+	if target.Health != 100 {
+		t.Error("wounded helper should be able to give medical help")
 	}
 }
 
 func TestRoom_ApplyHelp_enemyCannotBeHelped(t *testing.T) {
-	r := NewRoom("test")
+	r := NewRoom("test", "paid")
 	helper := NewPlayer("helper", "test")
 	target := NewPlayer("target", "test")
 	r.Join(helper)
