@@ -212,7 +212,7 @@ services:
 
 databases:
   - name: nano-shooter-db
-    databaseName: nano_crypto_games
+    databaseName: nano_crypto_games_local_db
     plan: free
 ```
 

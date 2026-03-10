@@ -3,7 +3,7 @@
 ## 1. Create a PostgreSQL database
 
 1. In the Render dashboard, go to **New → PostgreSQL**.
-2. Choose a name (e.g. `nano-crypto-games-db`) and a region.
+2. Choose a name (e.g. `nano-crypto-games-prod-db`) and a region.
 3. Click **Create Database** and wait for it to become available.
 4. Copy the **Internal Database URL** — you will use it as `DATABASE_URL`.
 

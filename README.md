@@ -13,10 +13,10 @@ A collection of real-money browser games powered by Go and the Nano (XNO) crypto
 
 ```bash
 docker run -d \
-  --name nano-multiplayer-db \
+  --name nano_crypto_games_local_db_container \
   -e POSTGRES_USER=nano \
   -e POSTGRES_PASSWORD=nano \
-  -e POSTGRES_DB=nano_crypto_games \
+  -e POSTGRES_DB=nano_crypto_games_local_db \
   -p 5432:5432 \
   postgres:16
 ```
@@ -24,14 +24,14 @@ docker run -d \
 Connection string for your `.env`:
 
 ```
-DATABASE_URL=postgres://nano:nano@localhost:5432/nano_crypto_games?sslmode=disable
+DATABASE_URL=postgres://nano:nano@localhost:5432/nano_crypto_games_local_db?sslmode=disable
 ```
 
 ### 2. Stop / remove the container
 
 ```bash
-docker stop nano-multiplayer-db
-docker rm nano-multiplayer-db
+docker stop nano_crypto_games_local_db_container
+docker rm nano_crypto_games_local_db_container
 ```
 
 ### 3. Build and run the server
