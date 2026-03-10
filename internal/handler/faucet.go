@@ -150,6 +150,10 @@ func (h *FaucetWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(nickRunes) > 12 {
 		nickRunes = nickRunes[:12]
 	}
+	if len(nickRunes) == 0 {
+		http.Error(w, "nickname is required", http.StatusBadRequest)
+		return
+	}
 	p.Nickname = string(nickRunes)
 
 	// Faucet address — where rewards will be sent.

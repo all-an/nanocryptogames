@@ -39,9 +39,10 @@
         type="text"
         id="nick-input"
         class="nick-input"
-        placeholder="Your nickname (optional)"
+        placeholder="Your nickname (required)"
         maxlength="12"
         autocomplete="off"
+        required
       >
       <p class="modal-sub" style="margin-top:4px;">Choose your team</p>
       <div class="team-buttons">
@@ -89,8 +90,9 @@
     function joinWithTeam(team) {
       if (!pendingRoom) return;
       const nick = document.getElementById("nick-input").value.trim().slice(0, 12);
+      if (!nick) { document.getElementById("nick-input").focus(); return; }
       const params = new URLSearchParams({ team });
-      if (nick) params.set("nick", nick);
+      params.set("nick", nick);
       window.location.href = `/game/${encodeURIComponent(pendingRoom)}?${params}`;
     }
 

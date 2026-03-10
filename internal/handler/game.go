@@ -324,6 +324,10 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(nickRunes) > 12 {
 		nickRunes = nickRunes[:12]
 	}
+	if len(nickRunes) == 0 {
+		http.Error(w, "nickname is required", http.StatusBadRequest)
+		return
+	}
 	p.Nickname = string(nickRunes)
 
 	// Always derive a Nano address — master seed is guaranteed non-empty.

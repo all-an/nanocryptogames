@@ -39,9 +39,10 @@
         type="text"
         id="nick-input"
         class="nick-input"
-        placeholder="Your nickname (optional)"
+        placeholder="Your nickname (required)"
         maxlength="12"
         autocomplete="off"
+        required
       >
       <input
         type="text"
@@ -97,9 +98,10 @@
     function joinWithTeam(team) {
       if (!pendingRoom) return;
       const nick    = document.getElementById("nick-input").value.trim().slice(0, 12);
+      if (!nick) { document.getElementById("nick-input").focus(); return; }
       const address = document.getElementById("address-input").value.trim();
       const params  = new URLSearchParams({ team });
-      if (nick)    params.set("nick", nick);
+      params.set("nick", nick);
       if (address) params.set("address", address);
       window.location.href = `/faucet/game/${encodeURIComponent(pendingRoom)}?${params}`;
     }
