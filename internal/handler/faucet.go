@@ -63,6 +63,96 @@ func (h *FaucetLobbyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.tmpl.ExecuteTemplate(w, "faucet_lobby.html", nil)
 }
 
+// FaucetBotsPageHandler serves the bot practice mode page.
+type FaucetBotsPageHandler struct {
+	tmpl       *template.Template
+	faucetAddr string
+}
+
+// NewFaucetBotsPageHandler wires up the bots game template.
+func NewFaucetBotsPageHandler(tmpl *template.Template, faucetAddr string) *FaucetBotsPageHandler {
+	return &FaucetBotsPageHandler{tmpl: tmpl, faucetAddr: faucetAddr}
+}
+
+func (h *FaucetBotsPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.tmpl.ExecuteTemplate(w, "faucet_bots.html", map[string]string{
+		"FaucetAddress": h.faucetAddr,
+	})
+}
+
+// FaucetBotsRewardHandler pays a faucet reward when a player kills a bot.
+// Uses the same daily-per-IP limit as the main faucet game.
+type FaucetBotsRewardHandler struct {
+	db           *db.DB
+	rpc          *nano.Client
+	faucetWallet *nano.Wallet
+	sendMu       sync.Mutex
+	testMode     bool
+}
+
+// NewFaucetBotsRewardHandler wires up the bot kill reward handler.
+func NewFaucetBotsRewardHandler(database *db.DB, rpc *nano.Client, wallet *nano.Wallet) *FaucetBotsRewardHandler {
+	return &FaucetBotsRewardHandler{
+		db:           database,
+		rpc:          rpc,
+		faucetWallet: wallet,
+		testMode:     os.Getenv("FAUCET_TEST_MODE") == "true",
+	}
+}
+
+func (h *FaucetBotsRewardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if h.faucetWallet == nil || h.rpc == nil {
+		http.Error(w, "faucet not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		Address string `json:"address"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Address == "" {
+		http.Error(w, "address required", http.StatusBadRequest)
+		return
+	}
+
+	ip := faucetClientIP(r)
+
+	if !h.testMode && h.db != nil && ip != "" {
+		count, err := h.db.FaucetPayoutsToday(r.Context(), ip)
+		if err == nil && count >= maxDailyPayoutsPerIP {
+			http.Error(w, "daily limit reached", http.StatusTooManyRequests)
+			return
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	h.sendMu.Lock()
+	hash, err := nano.SendFast(ctx, h.rpc, h.faucetWallet, req.Address, faucetRewardRaw, "")
+	h.sendMu.Unlock()
+
+	if err != nil {
+		log.Printf("faucet bots reward → %s: %v", req.Address, err)
+		http.Error(w, "payout failed", http.StatusInternalServerError)
+		return
+	}
+
+	if h.db != nil {
+		dbCtx, dbCancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer dbCancel()
+		if err := h.db.RecordFaucetPayout(dbCtx, "bot_kill", req.Address, ip, faucetRewardRaw, hash); err != nil {
+			log.Printf("faucet bots reward DB: %v", err)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"xno": "0.000010"})
+}
+
 // FaucetGamePageHandler serves the faucet game canvas page.
 type FaucetGamePageHandler struct {
 	tmpl       *template.Template

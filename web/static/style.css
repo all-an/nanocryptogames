@@ -99,6 +99,42 @@ body {
   padding: 16px 0;
 }
 
+.room-list-bots {
+  list-style: none;
+  text-align: center;
+  padding: 4px 0 12px;
+}
+
+.btn-play-bots {
+  display: inline-block;
+  padding: 11px 32px;
+  background: linear-gradient(135deg, #1a3a6a 0%, #2a5aa0 50%, #1a3a6a 100%);
+  background-size: 200% 200%;
+  border: 1px solid #4a90d9;
+  border-radius: 8px;
+  color: #a8d4ff;
+  font-size: 0.98rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  letter-spacing: 0.03em;
+  box-shadow: 0 0 12px rgba(74,144,217,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
+  transition: box-shadow 0.25s, background-position 0.4s, color 0.2s;
+  animation: bots-btn-pulse 2.8s ease-in-out infinite;
+}
+
+.btn-play-bots:hover {
+  color: #ffffff;
+  box-shadow: 0 0 22px rgba(74,144,217,0.65), inset 0 1px 0 rgba(255,255,255,0.12);
+  animation: none;
+  background-position: right center;
+}
+
+@keyframes bots-btn-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(74,144,217,0.3), inset 0 1px 0 rgba(255,255,255,0.08); }
+  50%       { box-shadow: 0 0 20px rgba(74,144,217,0.6), inset 0 1px 0 rgba(255,255,255,0.10); }
+}
+
 .room-item {
   display: flex;
   align-items: center;

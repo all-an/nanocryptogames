@@ -30,6 +30,26 @@
     </div>
   </div>
 
+  <!-- Bots picker modal -->
+  <div id="bots-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <p class="modal-title">🤖 Play with Bots</p>
+      <p class="modal-sub">Practice mode — 3 bots vs you. Kills earn faucet rewards if you provide a Nano address.</p>
+      <input
+        type="text"
+        id="bots-address-input"
+        class="nick-input"
+        placeholder="Your Nano address (optional, for rewards)"
+        autocomplete="off"
+        style="margin-top:10px;"
+      >
+      <div class="team-buttons" style="margin-top:12px;">
+        <button id="bots-play-btn" class="btn-team btn-team-red" style="flex:1;">Play</button>
+        <button id="bots-cancel-btn" class="btn-secondary" style="flex:1;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Team picker modal — includes nano address input for receiving rewards -->
   <div id="team-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-box">
@@ -131,7 +151,11 @@
     function renderRooms(rooms) {
       const list = document.getElementById("room-list");
       if (!rooms || rooms.length === 0) {
-        list.innerHTML = '<li class="room-list-empty">No rooms open yet — create one above</li>';
+        list.innerHTML = `
+          <li class="room-list-empty">No rooms open yet — create one above</li>
+          <li class="room-list-bots">
+            <button class="btn-play-bots" onclick="showBotsPicker()">🤖 Play with Bots</button>
+          </li>`;
         return;
       }
       list.innerHTML = rooms.map(r => `
@@ -163,6 +187,28 @@
     function escapeJs(str) {
       return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     }
+
+    function showBotsPicker() {
+      document.getElementById("bots-modal").classList.remove("hidden");
+      document.getElementById("bots-address-input").focus();
+    }
+
+    function hideBotsPicker() {
+      document.getElementById("bots-modal").classList.add("hidden");
+    }
+
+    function launchBots() {
+      const address = document.getElementById("bots-address-input").value.trim();
+      const params  = new URLSearchParams();
+      if (address) params.set("address", address);
+      window.location.href = `/faucet/bots${params.toString() ? "?" + params : ""}`;
+    }
+
+    document.getElementById("bots-play-btn").addEventListener("click", launchBots);
+    document.getElementById("bots-cancel-btn").addEventListener("click", hideBotsPicker);
+    document.getElementById("bots-address-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") launchBots();
+    });
 
     loadRooms();
     setInterval(loadRooms, 3000);
