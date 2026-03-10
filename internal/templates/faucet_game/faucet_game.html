@@ -12,6 +12,7 @@
     <div class="game-wrap">
       <div class="game-header">
         <span class="room-label">Room: <strong>{{.RoomID}}</strong></span>
+        <span id="enemy-reload-banner" class="enemy-reload-banner"></span>
         <span id="ammo-badge" class="ammo-badge">🔫 10</span>
         <div class="game-header-actions">
           <span id="faucet-earned" class="faucet-earned-badge hidden">Ӿ Earned: 0.000000</span>
@@ -25,7 +26,7 @@
         data-faucet-address="{{.FaucetAddress}}"
         width="1000" height="680"></canvas>
 
-      <p class="controls-hint">Move: WASD / arrows &nbsp;·&nbsp; Click to shoot &nbsp;·&nbsp; <kbd style="background:#2a2a3e;border:1px solid #555;border-radius:3px;padding:0 5px;font-size:0.85em;">R</kbd> to reload (5s) &nbsp;·&nbsp; Stand next to a teammate to heal &nbsp;·&nbsp; Each kill or heal earns <strong>0.00001 XNO</strong></p>
+      <p class="controls-hint">Move: WASD / arrows &nbsp;·&nbsp; Click or <kbd style="background:#2a2a3e;border:1px solid #555;border-radius:3px;padding:0 5px;font-size:0.85em;">Space</kbd> to shoot &nbsp;·&nbsp; <kbd style="background:#2a2a3e;border:1px solid #555;border-radius:3px;padding:0 5px;font-size:0.85em;">R</kbd> to reload (5s) &nbsp;·&nbsp; Stand next to a teammate to heal &nbsp;·&nbsp; Each kill or heal earns <strong>0.00001 XNO</strong></p>
     </div>
 
   </div>

@@ -209,7 +209,7 @@ const MOVE_COOLDOWN = 150;
 
 document.addEventListener("keydown", (e) => {
   const me = myPosition();
-  if (!me || me.health < 100) return; // only healthy players can move
+  if (!me || me.health < 99) return; // only healthy players can move
 
   const now = Date.now();
   if (now - lastMoveAt < MOVE_COOLDOWN) return;
@@ -244,7 +244,7 @@ canvas.addEventListener("mouseleave", () => { hoverCell = null; });
 
 canvas.addEventListener("click", (e) => {
   const me = myPosition();
-  if (!me || me.health < 100) return; // only healthy players can act
+  if (!me || me.health < 99) return; // only healthy players can act
 
   const rect = canvas.getBoundingClientRect();
   const gx = Math.floor((e.clientX - rect.left) / CELL);
@@ -256,7 +256,7 @@ canvas.addEventListener("click", (e) => {
   const isOtherPlayer = occupant && occupant.id !== myID;
   const isEnemy       = isOtherPlayer && occupant.team !== myTeam && occupant.health > 0;
   const canHelp       = isOtherPlayer && occupant.team === myTeam &&
-                        occupant.health === 50 &&
+                        occupant.health === 33 &&
                         isAdjacent(me.gx, me.gy, gx, gy);
 
   pending = { gx, gy, targetID: isOtherPlayer ? occupant.id : null, canHelp };
@@ -355,9 +355,9 @@ function draw() {
   drawGrid();
 
   const me = myPosition();
-  if (me && me.health === 100) drawReachableArea(me);
+  if (me && me.health === 99) drawReachableArea(me);
 
-  if (hoverCell && me && me.health === 100 && isReachable(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
+  if (hoverCell && me && me.health === 99 && isReachable(me.gx, me.gy, hoverCell.gx, hoverCell.gy)) {
     drawCellHighlight(hoverCell.gx, hoverCell.gy, "rgba(255,255,255,0.10)");
   }
   if (pending) {
@@ -417,7 +417,7 @@ function drawPlayer(player, px, py) {
   const isMe = player.id === myID;
 
   const dead          = player.health === 0;
-  const incapacitated = player.health === 50;
+  const incapacitated = player.health === 33;
 
   ctx.save();
 
@@ -465,7 +465,7 @@ function drawHealthBar(cx, cy, health) {
   const w   = CELL - 4;
   const h   = 4;
   const x   = cx - w / 2;
-  const pct = Math.max(0, health / 100);
+  const pct = Math.max(0, health / 99);
 
   ctx.fillStyle = "#222";
   ctx.fillRect(x, cy, w, h);

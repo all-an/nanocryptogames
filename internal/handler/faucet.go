@@ -358,7 +358,7 @@ func (h *FaucetWSHandler) faucetReadPump(conn *websocket.Conn, p *game.Player, r
 		}
 
 		switch raw.Action {
-		case "move", "shoot", "help":
+		case "move", "shoot", "help", "reload":
 			room.Submit(game.Input{
 				PlayerID: p.ID,
 				Action:   raw.Action,

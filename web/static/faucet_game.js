@@ -47,9 +47,10 @@ const faucetAddr   = canvas.dataset.faucetAddress || "";
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
-let myID   = null;
-let myTeam = null;
-let state  = { players: [] };
+let myID      = null;
+let myTeam    = null;
+let state     = { players: [] };
+let healItems = [];
 let hoverCell = null;
 let pending   = null;
 
@@ -88,9 +89,37 @@ function showReloadPopup() {
   reloadPopupTimer = setTimeout(() => el.classList.add("hidden"), 2000);
 }
 
+// ── Enemy reload queue ──────────────────────────────────────────────────────────
+
+const reloadQueue = [];
+let reloadBannerActive = false;
+
+// queueReloadNotice adds a nickname to the banner queue and starts display if idle.
+function queueReloadNotice(nickname) {
+  reloadQueue.push(nickname);
+  if (!reloadBannerActive) showNextReloadNotice();
+}
+
+function showNextReloadNotice() {
+  if (reloadQueue.length === 0) { reloadBannerActive = false; return; }
+  reloadBannerActive = true;
+  const nick = reloadQueue.shift();
+  const el = document.getElementById("enemy-reload-banner");
+  el.textContent = `"${nick}" is reloading`;
+  el.style.opacity = "1";
+  // Hold for 3s then fade out, then show next.
+  setTimeout(() => {
+    el.style.opacity = "0";
+    setTimeout(showNextReloadNotice, 350);
+  }, 3000);
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+
 function startReload() {
   if (reloading) return;
   reloading = true;
+  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action: "reload" }));
   document.getElementById("reload-popup")?.classList.add("hidden");
 
   const badge = document.getElementById("ammo-badge");
@@ -183,6 +212,7 @@ ws.onmessage = (event) => {
     }
 
   } else if (msg.type === "state") {
+    healItems = msg.healItems || [];
     for (const p of msg.players) {
       if (!playerVisuals[p.id]) {
         playerVisuals[p.id] = {
@@ -241,6 +271,13 @@ ws.onmessage = (event) => {
 
   } else if (msg.type === "faucet_sameip") {
     showFairPlayModal(msg.message);
+
+  } else if (msg.type === "reloading") {
+    // Only show the banner when an enemy (different team) is reloading.
+    const p = state.players?.find(pl => pl.id === msg.playerID);
+    if (p && p.team !== myTeam) {
+      queueReloadNotice(msg.nickname || p.nickname);
+    }
   }
 };
 
@@ -338,6 +375,14 @@ const MOVE_COOLDOWN = 150;
 document.addEventListener("keydown", (e) => {
   const me = myPosition();
   if (!me || me.health === 0) return;
+
+  if (e.key === " ") {
+    e.preventDefault();
+    if (hoverCell) tryShootAt(hoverCell.gx, hoverCell.gy);
+    return;
+  }
+  if (e.key === "r" || e.key === "R") { startReload(); return; }
+
   const now = Date.now();
   if (now - lastMoveAt < MOVE_COOLDOWN) return;
   let gx = me.gx, gy = me.gy;
@@ -346,7 +391,6 @@ document.addEventListener("keydown", (e) => {
     case "ArrowRight": case "d": gx++; break;
     case "ArrowUp":    case "w": gy--; break;
     case "ArrowDown":  case "s": gy++; break;
-    case "r": case "R": startReload(); return;
     default: return;
   }
   e.preventDefault();
@@ -361,6 +405,33 @@ canvas.addEventListener("mousemove", (e) => {
   hoverCell = { gx: Math.floor((e.clientX - rect.left) / CELL), gy: Math.floor((e.clientY - rect.top) / CELL) };
 });
 canvas.addEventListener("mouseleave", () => { hoverCell = null; });
+// tryShootAt fires a bullet from the local player toward grid cell (gx, gy).
+// Handles ammo, cooldown, ray-cast hit detection, and bullet animation.
+function tryShootAt(gx, gy) {
+  if (reloading) return;
+  if (ammo === 0) { showReloadPopup(); return; }
+  const now = Date.now();
+  if (now - lastShotAt < SHOT_COOLDOWN) return;
+  lastShotAt = now;
+
+  const myV = playerVisuals[myID];
+  if (!myV) return;
+
+  const targetPx = gx * CELL + CELL / 2, targetPy = gy * CELL + CELL / 2;
+  const edge = extendRayToEdge(myV.px, myV.py, targetPx, targetPy);
+  const hit = enemyOnRay(myV.px, myV.py, edge.x, edge.y);
+  const toPx = hit ? hit.hitPx : edge.x;
+  const toPy = hit ? hit.hitPy : edge.y;
+  const dist = Math.sqrt((toPx - myV.px) ** 2 + (toPy - myV.py) ** 2);
+  const duration = Math.max(100, dist / 2);
+  bullets.push({ fromPx: myV.px, fromPy: myV.py, toPx, toPy,
+                 startTime: performance.now(), duration,
+                 spawnImpactOnEnd: !!hit });
+  ammo--;
+  updateAmmoBadge();
+  if (hit) setTimeout(() => sendShoot(hit.player.id), duration);
+}
+
 canvas.addEventListener("click", (e) => {
   const me = myPosition();
   if (!me || me.health === 0) return;
@@ -371,37 +442,12 @@ canvas.addEventListener("click", (e) => {
   // Clicking an adjacent incapacitated teammate heals them.
   const occupant = playerAtCell(gx, gy);
   if (occupant && occupant.id !== myID && occupant.team === myTeam &&
-      occupant.health === 50 && isAdjacent(me.gx, me.gy, gx, gy)) {
+      occupant.health === 33 && isAdjacent(me.gx, me.gy, gx, gy)) {
     sendHelp(occupant.id);
     return;
   }
 
-  // Ammo check — block shot if reloading, empty, or within cooldown.
-  if (reloading) return;
-  if (ammo === 0) { showReloadPopup(); return; }
-  const now = Date.now();
-  if (now - lastShotAt < SHOT_COOLDOWN) return;
-  lastShotAt = now;
-
-  const myV = playerVisuals[myID];
-  if (myV) {
-    const clickPx = gx * CELL + CELL / 2, clickPy = gy * CELL + CELL / 2;
-    const edge = extendRayToEdge(myV.px, myV.py, clickPx, clickPy);
-
-    const hit = enemyOnRay(myV.px, myV.py, edge.x, edge.y);
-    const toPx = hit ? hit.hitPx : edge.x;
-    const toPy = hit ? hit.hitPy : edge.y;
-    const dist = Math.sqrt((toPx - myV.px) ** 2 + (toPy - myV.py) ** 2);
-    const duration = Math.max(100, dist / 2);
-    bullets.push({ fromPx: myV.px, fromPy: myV.py, toPx, toPy,
-                   startTime: performance.now(), duration,
-                   spawnImpactOnEnd: !!hit });
-
-    ammo--;
-    updateAmmoBadge();
-
-    if (hit) setTimeout(() => sendShoot(hit.player.id), duration);
-  }
+  tryShootAt(gx, gy);
 });
 
 // ── Modal ──────────────────────────────────────────────────────────────────────
@@ -452,6 +498,24 @@ function updateVisuals() {
   for (const id in playerVisuals) { if (!activeIDs.has(id)) delete playerVisuals[id]; }
 }
 
+// drawHealItems renders each heal pack as a white square with a red cross.
+function drawHealItems() {
+  for (const item of healItems) {
+    const x = item.gx * CELL;
+    const y = item.gy * CELL;
+    const pad = 6;
+    // White square background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x + pad, y + pad, CELL - pad * 2, CELL - pad * 2);
+    // Red cross — horizontal bar
+    const cx = x + CELL / 2, cy = y + CELL / 2;
+    const arm = 7, thick = 4;
+    ctx.fillStyle = "#e05252";
+    ctx.fillRect(cx - arm, cy - thick / 2, arm * 2, thick);
+    ctx.fillRect(cx - thick / 2, cy - arm, thick, arm * 2);
+  }
+}
+
 function drawBarriers() {
   for (const key of BARRIERS) {
     const [gx, gy] = key.split(",").map(Number);
@@ -485,6 +549,7 @@ function draw() {
   }
   if (pending) drawCellHighlight(pending.gx, pending.gy, "rgba(74,144,217,0.30)");
   drawBarriers(); // drawn after highlights so barriers are never painted over
+  drawHealItems();
   for (const p of state.players || []) {
     const v = playerVisuals[p.id];
     if (v) drawPlayer(p, v.px, v.py);
@@ -529,7 +594,7 @@ function drawPlayer(player, px, py) {
   const r = CELL / 2 - 2;
   const isMe = player.id === myID;
   const dead = player.health === 0;
-  const incap = player.health === 50;
+  const incap = player.health === 33;
   ctx.save();
   if (dead) ctx.globalAlpha = 0.4;
   else if (incap) ctx.globalAlpha = 0.55;
@@ -560,7 +625,7 @@ function drawPlayer(player, px, py) {
 
 function drawHealthBar(cx, cy, health) {
   const w = CELL - 4, h = 4, x = cx - w / 2;
-  const pct = Math.max(0, health / 100);
+  const pct = Math.max(0, health / 99);
   ctx.fillStyle = "#222"; ctx.fillRect(x, cy, w, h);
   ctx.fillStyle = pct > 0.5 ? "#52C07A" : pct > 0.25 ? "#F5A623" : "#E05252";
   ctx.fillRect(x, cy, w * pct, h);

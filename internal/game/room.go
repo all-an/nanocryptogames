@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"log"
 	"math/big"
+	"math/rand"
 	"sync"
 	"time"
 )
+
+const healItemCount   = 4              // number of heal packs on the map at once
+const healItemRespawn = 15 * time.Second // delay before a consumed pack reappears
 
 const tickRate = 50 * time.Millisecond // 20 TPS — used for state broadcast heartbeat
 
@@ -29,10 +33,10 @@ var blueSpawnPoints = [][2]int{
 	{23, 1}, {23, 8}, {23, 15}, {22, 4}, {22, 12},
 }
 
-// Input is a command sent by a player: "move", "shoot", or "help".
+// Input is a command sent by a player: "move", "shoot", "help", or "reload".
 type Input struct {
 	PlayerID string
-	Action   string // "move" (default), "shoot", or "help"
+	Action   string // "move" (default), "shoot", "help", or "reload"
 	GX, GY   int    // target grid cell for move
 	TargetID string // target player ID for shoot/help
 }
@@ -42,6 +46,13 @@ type shotEvent struct {
 	Type      string `json:"type"`
 	ShooterID string `json:"shooterID"`
 	TargetID  string `json:"targetID"`
+}
+
+// reloadingEvent is broadcast to all other players when a player starts reloading.
+type reloadingEvent struct {
+	Type     string `json:"type"`
+	PlayerID string `json:"playerID"`
+	Nickname string `json:"nickname"`
 }
 
 // helpEvent is broadcast to all players when a player gives medical help.
@@ -65,6 +76,12 @@ type balanceEvent struct {
 	Raw  string `json:"raw"` // raw Nano units as decimal string, for client-side math
 }
 
+// healItemState is the position of one heal pack broadcast to clients each tick.
+type healItemState struct {
+	GX int `json:"gx"`
+	GY int `json:"gy"`
+}
+
 // playerState is the per-player snapshot included in each broadcast.
 type playerState struct {
 	ID       string `json:"id"`
@@ -78,8 +95,9 @@ type playerState struct {
 
 // worldState is the full game snapshot sent to every client each tick.
 type worldState struct {
-	Type    string        `json:"type"`
-	Players []playerState `json:"players"`
+	Type      string          `json:"type"`
+	Players   []playerState   `json:"players"`
+	HealItems []healItemState `json:"healItems"`
 }
 
 // Room represents one active game session with its own goroutine and tick loop.
@@ -88,6 +106,7 @@ type Room struct {
 	Mode               string // "paid" (default) or "faucet"
 	DisableSameIPCheck bool   // when true, same-IP kills/heals still earn faucet rewards
 	players            map[string]*Player
+	healItems          map[[2]int]bool // grid cells that currently hold a heal pack
 	inputCh            chan Input
 	done               chan struct{}
 	mu                 sync.RWMutex
@@ -98,14 +117,17 @@ type Room struct {
 
 // NewRoom creates a Room ready to accept players in the given mode ("paid" or "faucet").
 func NewRoom(id, mode string) *Room {
-	return &Room{
+	r := &Room{
 		ID:          id,
 		Mode:        mode,
 		players:     make(map[string]*Player),
+		healItems:   make(map[[2]int]bool),
 		inputCh:     make(chan Input, 256),
 		done:        make(chan struct{}),
 		shotCostRaw: new(big.Int).Set(defaultShotCostRaw),
 	}
+	r.initHealItems()
+	return r
 }
 
 // SetShotCost overrides the default shot cost. Call this before players join.
@@ -206,6 +228,45 @@ func (r *Room) teamCounts() (red, blue int) {
 	return
 }
 
+// initHealItems seeds the room with the initial set of heal packs.
+// Called once from NewRoom — no concurrent access yet so no lock needed.
+func (r *Room) initHealItems() {
+	for i := 0; i < healItemCount; i++ {
+		if cell, ok := r.randomFreeCell(); ok {
+			r.healItems[cell] = true
+		}
+	}
+}
+
+// spawnHealItem adds one heal pack at a random free cell and broadcasts the update.
+// Called from a goroutine after a pack is consumed.
+func (r *Room) spawnHealItem() {
+	r.mu.Lock()
+	if cell, ok := r.randomFreeCell(); ok {
+		r.healItems[cell] = true
+	}
+	r.mu.Unlock()
+	r.broadcastState()
+}
+
+// randomFreeCell returns a random grid cell that is not a barrier and does not
+// already hold a heal pack. Must be called with r.mu held (or before the room starts).
+func (r *Room) randomFreeCell() ([2]int, bool) {
+	candidates := make([][2]int, 0, GridCols*GridRows)
+	for gy := 0; gy < GridRows; gy++ {
+		for gx := 0; gx < GridCols; gx++ {
+			cell := [2]int{gx, gy}
+			if !IsBarrier(gx, gy) && !r.healItems[cell] {
+				candidates = append(candidates, cell)
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		return [2]int{}, false
+	}
+	return candidates[rand.Intn(len(candidates))], true
+}
+
 // applyInput dispatches to the correct handler based on the action type.
 func (r *Room) applyInput(input Input) {
 	switch input.Action {
@@ -213,6 +274,8 @@ func (r *Room) applyInput(input Input) {
 		r.applyShoot(input)
 	case "help":
 		r.applyHelp(input)
+	case "reload":
+		r.applyReload(input)
 	default:
 		r.applyMove(input)
 	}
@@ -240,6 +303,21 @@ func (r *Room) applyMove(input Input) {
 	}
 
 	p.GX, p.GY = clampToGrid(input.GX, input.GY)
+
+	// Pick up a heal pack if the player stepped onto one.
+	cell := [2]int{p.GX, p.GY}
+	if r.healItems[cell] {
+		delete(r.healItems, cell)
+		if p.Health+33 > 99 {
+			p.Health = 99
+		} else {
+			p.Health += 33
+		}
+		go func() {
+			time.Sleep(healItemRespawn)
+			r.spawnHealItem()
+		}()
+	}
 }
 
 // applyShoot handles a shoot action: validates, deducts shot cost, applies damage,
@@ -287,7 +365,7 @@ func (r *Room) applyShoot(input Input) {
 		shooterBalanceXNO = shooter.BalanceXNO()
 	}
 
-	target.Health -= 50
+	target.Health -= 33
 	isKill := target.Health == 0
 
 	// After a kill, check whether every player on the target's team is now dead.
@@ -375,6 +453,29 @@ func (r *Room) applyShoot(input Input) {
 	}
 }
 
+// applyReload notifies all other players that a player has started reloading.
+// Only living players can broadcast a reload signal.
+func (r *Room) applyReload(input Input) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	p, ok := r.players[input.PlayerID]
+	if !ok || p.Health == 0 {
+		return
+	}
+
+	evt, _ := json.Marshal(reloadingEvent{
+		Type:     "reloading",
+		PlayerID: p.ID,
+		Nickname: p.Nickname,
+	})
+	for _, other := range r.players {
+		if other.ID != p.ID {
+			other.Send(evt)
+		}
+	}
+}
+
 // applyHelp handles a medical help action.
 // A healthy player adjacent (Chebyshev distance ≤ 1) to an incapacitated teammate
 // can give medical help, restoring the target to full health.
@@ -388,8 +489,8 @@ func (r *Room) applyHelp(input Input) {
 	}
 
 	target, ok := r.players[input.TargetID]
-	if !ok || target.Health != 50 {
-		return // can only help incapacitated players (health == 50)
+	if !ok || target.Health != 33 {
+		return // can only help incapacitated players (health == 33)
 	}
 
 	// Can only help a teammate.
@@ -404,7 +505,7 @@ func (r *Room) applyHelp(input Input) {
 		return
 	}
 
-	target.Health = 100
+	target.Health += 33
 
 	// In faucet mode, signal the WS handler to send a heal reward to the helper.
 	// Apply the same same-IP guard as kills so players can't farm by healing their own alt tabs.
@@ -443,7 +544,7 @@ func (r *Room) restartRound() {
 
 	newRound, _ := json.Marshal(map[string]string{"type": "newround"})
 	for _, p := range r.players {
-		p.Health = 100
+		p.Health = 99
 		p.GX, p.GY = p.SpawnGX, p.SpawnGY
 		p.Send(newRound)
 	}
@@ -458,7 +559,11 @@ func (r *Room) broadcastState() {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	state := worldState{Type: "state", Players: make([]playerState, 0, len(r.players))}
+	state := worldState{
+		Type:      "state",
+		Players:   make([]playerState, 0, len(r.players)),
+		HealItems: make([]healItemState, 0, len(r.healItems)),
+	}
 	for _, p := range r.players {
 		state.Players = append(state.Players, playerState{
 			ID:       p.ID,
@@ -469,6 +574,9 @@ func (r *Room) broadcastState() {
 			Team:     p.Team,
 			Nickname: p.Nickname,
 		})
+	}
+	for cell := range r.healItems {
+		state.HealItems = append(state.HealItems, healItemState{GX: cell[0], GY: cell[1]})
 	}
 
 	data, err := json.Marshal(state)

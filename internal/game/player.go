@@ -45,7 +45,7 @@ func NewPlayer(id, roomID string) *Player {
 	return &Player{
 		ID:         id,
 		RoomID:     roomID,
-		Health:     100,
+		Health:     99,
 		BalanceRaw: new(big.Int),
 		send:       make(chan []byte, 64),
 	}
