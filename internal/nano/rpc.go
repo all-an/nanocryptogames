@@ -194,10 +194,15 @@ func (c *Client) GenerateWork(ctx context.Context, hash string) (string, error) 
 			"hash":      hash,
 			"use_peers": true,
 		}, &r)
-		if err == nil && r.Error == "" {
+		if err == nil && r.Error == "" && r.Work != "" {
 			ch <- result{r.Work, nil}
+		} else if err != nil {
+			log.Printf("nano: remote work_generate failed: %v", err)
+		} else if r.Error != "" {
+			log.Printf("nano: remote work_generate RPC error: %s", r.Error)
+		} else {
+			log.Printf("nano: remote work_generate returned empty work")
 		}
-		// If remote fails, don't send — CPU result will arrive instead.
 	}()
 
 	// Local CPU mining: always works, ~2-5 s at send difficulty.

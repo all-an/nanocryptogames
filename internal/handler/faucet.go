@@ -60,21 +60,49 @@ func (s *FaucetSender) IsConfigured() bool {
 	return s.wallet != nil && s.rpc != nil
 }
 
+// Init pre-caches proof-of-work for the current wallet frontier in the background.
+// Call once at startup so the first send is near-instant without waiting for PoW.
+func (s *FaucetSender) Init() {
+	if !s.IsConfigured() {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+		defer cancel()
+		info, err := s.rpc.GetAccountInfo(ctx, s.wallet.Address)
+		if err != nil {
+			log.Printf("faucet sender init: account info: %v", err)
+			return
+		}
+		work, err := s.rpc.GenerateWork(ctx, info.Frontier)
+		if err != nil {
+			log.Printf("faucet sender init: work: %v", err)
+			return
+		}
+		s.mu.Lock()
+		if s.cachedFrontier == "" { // don't overwrite a more recent cache
+			s.cachedWork = work
+			s.cachedFrontier = info.Frontier
+		}
+		s.mu.Unlock()
+		log.Printf("faucet sender: startup pre-cached work for frontier %s…", info.Frontier[:8])
+	}()
+}
+
 // Send executes a serialised send, using any pre-cached PoW for speed.
 // After a successful send it kicks off background PoW for the next block.
+// ctx controls the overall deadline; callers should use a long timeout (≥300s)
+// to give CPU PoW enough time on slow servers.
 func (s *FaucetSender) Send(ctx context.Context, toAddress, amountRaw string) (string, error) {
-	sendCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
-	defer cancel()
-
 	s.mu.Lock()
 	preWork := s.cachedWork
 	s.cachedWork = ""
 	s.cachedFrontier = ""
-	hash, err := nano.SendFast(sendCtx, s.rpc, s.wallet, toAddress, amountRaw, preWork)
+	hash, err := nano.SendFast(ctx, s.rpc, s.wallet, toAddress, amountRaw, preWork)
 	if err == nil {
 		newFrontier := hash
 		go func() {
-			workCtx, wCancel := context.WithTimeout(context.Background(), 120*time.Second)
+			workCtx, wCancel := context.WithTimeout(context.Background(), 300*time.Second)
 			defer wCancel()
 			nextWork, wErr := s.rpc.GenerateWork(workCtx, newFrontier)
 			if wErr == nil {
@@ -83,6 +111,8 @@ func (s *FaucetSender) Send(ctx context.Context, toAddress, amountRaw string) (s
 				s.cachedFrontier = newFrontier
 				s.mu.Unlock()
 				log.Printf("faucet: pre-cached work for frontier %s…", newFrontier[:8])
+			} else {
+				log.Printf("faucet: pre-cache work failed: %v", wErr)
 			}
 		}()
 	}
@@ -195,7 +225,8 @@ func (h *FaucetBotsRewardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 	addr := req.Address
 	go func() {
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+		defer cancel()
 		log.Printf("bots reward: sending to %s…", addr)
 		hash, err := h.sender.Send(ctx, addr, faucetRewardRaw)
 		if err != nil {
@@ -360,7 +391,7 @@ func (h *FaucetWSHandler) payoutLoop(ctx context.Context, p *game.Player) {
 			}
 			// Use a detached context so the payment completes even if the
 			// player disconnects before the on-chain send finishes.
-			payCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+			payCtx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 			h.sendReward(payCtx, p, reason)
 			cancel()
 		case <-ctx.Done():
@@ -372,7 +403,7 @@ func (h *FaucetWSHandler) payoutLoop(ctx context.Context, p *game.Player) {
 					if !ok {
 						return
 					}
-					payCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+					payCtx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 					h.sendReward(payCtx, p, reason)
 					cancel()
 				default:

@@ -137,6 +137,7 @@ func main() {
 		log.Println("FAUCET_SEED not set — faucet rewards disabled")
 	}
 	faucetSender := handler.NewFaucetSender(rpcClient, faucetWallet)
+	faucetSender.Init() // pre-warm PoW cache in background at startup
 	faucetWSHandler := handler.NewFaucetWSHandler(faucetHub, database, faucetSender)
 
 	// ── Routes ───────────────────────────────────────────────────────────────
