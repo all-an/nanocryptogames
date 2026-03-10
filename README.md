@@ -16,7 +16,7 @@ docker run -d \
   --name nano-multiplayer-db \
   -e POSTGRES_USER=nano \
   -e POSTGRES_PASSWORD=nano \
-  -e POSTGRES_DB=nano_shooter \
+  -e POSTGRES_DB=nano_crypto_games \
   -p 5432:5432 \
   postgres:16
 ```
@@ -24,7 +24,7 @@ docker run -d \
 Connection string for your `.env`:
 
 ```
-DATABASE_URL=postgres://nano:nano@localhost:5432/nano_shooter?sslmode=disable
+DATABASE_URL=postgres://nano:nano@localhost:5432/nano_crypto_games?sslmode=disable
 ```
 
 ### 2. Stop / remove the container
