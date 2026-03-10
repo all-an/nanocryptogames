@@ -54,9 +54,10 @@ The server serves templates from `internal/templates/` and static files from `we
 Push to your connected branch (e.g. `main`). Render will automatically build and deploy on every push.
 
 Check the **Logs** tab in the Render dashboard to confirm:
-- `logging to file: server.log`
 - `faucet wallet: nano_...`
-- `listening on :10000`
+- `listening on :...`
+
+> File logging (`LOG_FILE` env var) is intentionally omitted on Render — all output goes to stdout and is captured in the Render Logs tab.
 
 ## 6. Fund the faucet
 

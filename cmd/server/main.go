@@ -31,31 +31,22 @@ func main() {
 	}
 
 	// ── File logging ──────────────────────────────────────────────────────────
-	// All log output goes to both stdout and a log file so every event is
-	// captured on disk and readable even after the terminal session ends.
+	// File logging is opt-in via LOG_FILE. When not set (e.g. on Render where
+	// the filesystem is ephemeral), all output goes to stdout only, which is
+	// captured by the platform's log aggregator.
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-	logPath := os.Getenv("LOG_FILE")
-	if logPath == "" {
-		logPath = "server.log"
+	writers := []io.Writer{os.Stdout}
+	if logPath := os.Getenv("LOG_FILE"); logPath != "" {
+		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			log.Printf("warning: could not open log file %s: %v — logging to stdout only", logPath, err)
+		} else {
+			defer logFile.Close()
+			writers = append(writers, logFile)
+			log.Printf("logging to file: %s", logPath)
+		}
 	}
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		log.Printf("warning: could not open log file %s: %v — logging to stdout only", logPath, err)
-	} else {
-		defer logFile.Close()
-		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
-		log.Printf("logging to file: %s", logPath)
-	}
-
-	// each_run_session.log is truncated on every start so it only contains the
-	// current run's output — useful for quick inspection without sifting through history.
-	sessionLogFile, err := os.OpenFile("each_run_session.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Printf("warning: could not open each_run_session.log: %v", err)
-	} else {
-		defer sessionLogFile.Close()
-		log.SetOutput(io.MultiWriter(os.Stdout, logFile, sessionLogFile))
-	}
+	log.SetOutput(io.MultiWriter(writers...))
 
 	addr := os.Getenv("ADDR")
 	if addr == "" {
