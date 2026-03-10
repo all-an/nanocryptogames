@@ -108,6 +108,7 @@ func (h *FaucetBotsRewardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if h.faucetWallet == nil || h.rpc == nil {
+		log.Printf("bots reward: faucet not configured (wallet=%v rpc=%v)", h.faucetWallet != nil, h.rpc != nil)
 		http.Error(w, "faucet not configured", http.StatusServiceUnavailable)
 		return
 	}
@@ -116,30 +117,36 @@ func (h *FaucetBotsRewardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		Address string `json:"address"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Address == "" {
+		log.Printf("bots reward: bad request (err=%v addr=%q)", err, req.Address)
 		http.Error(w, "address required", http.StatusBadRequest)
 		return
 	}
 
 	ip := faucetClientIP(r)
+	log.Printf("bots reward: request from ip=%s addr=%.20s…", ip, req.Address)
 
 	if !h.testMode && h.db != nil && ip != "" {
 		count, err := h.db.FaucetPayoutsToday(r.Context(), ip)
 		if err == nil && count >= maxDailyPayoutsPerIP {
+			log.Printf("bots reward: daily limit reached for ip=%s (count=%d)", ip, count)
 			http.Error(w, "daily limit reached", http.StatusTooManyRequests)
 			return
 		}
 	}
 
+	log.Printf("bots reward: acquiring send mutex…")
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	h.sendMu.Lock()
+	log.Printf("bots reward: mutex acquired, calling SendFast…")
 	hash, err := nano.SendFast(ctx, h.rpc, h.faucetWallet, req.Address, faucetRewardRaw, "")
 	h.sendMu.Unlock()
+	log.Printf("bots reward: SendFast done (hash=%.12s… err=%v)", hash, err)
 
 	if err != nil {
-		log.Printf("faucet bots reward → %s: %v", req.Address, err)
-		http.Error(w, "payout failed", http.StatusInternalServerError)
+		log.Printf("bots reward ERROR → %s: %v", req.Address, err)
+		http.Error(w, "payout failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -147,10 +154,11 @@ func (h *FaucetBotsRewardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		dbCtx, dbCancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer dbCancel()
 		if err := h.db.RecordFaucetPayout(dbCtx, "bot_kill", req.Address, ip, faucetRewardRaw, hash); err != nil {
-			log.Printf("faucet bots reward DB: %v", err)
+			log.Printf("bots reward DB: %v", err)
 		}
 	}
 
+	log.Printf("bots reward: paid %s raw → %s", faucetRewardRaw, req.Address)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"xno": "0.000010"})
 }
