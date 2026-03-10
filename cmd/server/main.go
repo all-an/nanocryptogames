@@ -136,7 +136,8 @@ func main() {
 	} else {
 		log.Println("FAUCET_SEED not set — faucet rewards disabled")
 	}
-	faucetWSHandler := handler.NewFaucetWSHandler(faucetHub, database, rpcClient, faucetWallet)
+	faucetSender := handler.NewFaucetSender(rpcClient, faucetWallet)
+	faucetWSHandler := handler.NewFaucetWSHandler(faucetHub, database, faucetSender)
 
 	// ── Routes ───────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
@@ -165,7 +166,7 @@ func main() {
 	mux.Handle("GET /faucet/api/rooms", handler.NewRoomsHandler(faucetHub))
 	mux.Handle("GET /faucet/ws/{roomID}", faucetWSHandler)
 	mux.Handle("GET /faucet/bots", handler.NewFaucetBotsPageHandler(tmpl, faucetAddr))
-	mux.Handle("POST /faucet/bots/reward", handler.NewFaucetBotsRewardHandler(database, rpcClient, faucetWallet, faucetWSHandler.SendMu()))
+	mux.Handle("POST /faucet/bots/reward", handler.NewFaucetBotsRewardHandler(database, faucetSender))
 
 	rpcTestHandler := handler.NewRPCTestHandler(tmpl, database, rpcClient, masterSeed)
 	mux.Handle("GET /rpc-test", rpcTestHandler)
