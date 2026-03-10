@@ -98,10 +98,16 @@ func main() {
 	if fallbackURL == "" {
 		fallbackURL = "https://rpc.nano.to"
 	}
+	nanoAPIKey := os.Getenv("NANO_RPC_API_KEY")
+	if nanoAPIKey != "" {
+		log.Printf("nano RPC: API key configured (%.8s…)", nanoAPIKey)
+	} else {
+		log.Printf("nano RPC: no API key — work_generate may be rate-limited (set NANO_RPC_API_KEY)")
+	}
 	rpcClient := nano.NewClient(nano.Config{
 		PrimaryURL:  primaryURL,
 		FallbackURL: fallbackURL,
-		APIKey:      os.Getenv("NANO_RPC_API_KEY"),
+		APIKey:      nanoAPIKey,
 	})
 
 	// ── Templates ────────────────────────────────────────────────────────────

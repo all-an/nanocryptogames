@@ -194,6 +194,7 @@ func (c *Client) GenerateWork(ctx context.Context, hash string) (string, error) 
 				"action":    "work_generate",
 				"hash":      hash,
 				"use_peers": usePeers,
+				"key":       c.cfg.APIKey, // nano.to also accepts key in the request body
 			}, &r)
 			if err == nil && r.Error == "" && r.Work != "" {
 				ch <- result{r.Work, nil}
