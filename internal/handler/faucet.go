@@ -134,33 +134,33 @@ func (h *FaucetBotsRewardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	log.Printf("bots reward: acquiring send mutex…")
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	h.sendMu.Lock()
-	log.Printf("bots reward: mutex acquired, calling SendFast…")
-	hash, err := nano.SendFast(ctx, h.rpc, h.faucetWallet, req.Address, faucetRewardRaw, "")
-	h.sendMu.Unlock()
-	log.Printf("bots reward: SendFast done (hash=%.12s… err=%v)", hash, err)
-
-	if err != nil {
-		log.Printf("bots reward ERROR → %s: %v", req.Address, err)
-		http.Error(w, "payout failed: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if h.db != nil {
-		dbCtx, dbCancel := context.WithTimeout(r.Context(), 10*time.Second)
-		defer dbCancel()
-		if err := h.db.RecordFaucetPayout(dbCtx, "bot_kill", req.Address, ip, faucetRewardRaw, hash); err != nil {
-			log.Printf("bots reward DB: %v", err)
-		}
-	}
-
-	log.Printf("bots reward: paid %s raw → %s", faucetRewardRaw, req.Address)
+	// Respond immediately — PoW generation can take 10-30 s on a CPU-only server.
+	// The actual Nano send runs in the background; the client sees the green badge right away.
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"xno": "0.000010"})
+
+	addr := req.Address
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancel()
+		log.Printf("bots reward: acquiring send mutex for %s…", addr)
+		h.sendMu.Lock()
+		log.Printf("bots reward: mutex acquired, calling SendFast for %s…", addr)
+		hash, err := nano.SendFast(ctx, h.rpc, h.faucetWallet, addr, faucetRewardRaw, "")
+		h.sendMu.Unlock()
+		if err != nil {
+			log.Printf("bots reward ERROR → %s: %v", addr, err)
+			return
+		}
+		log.Printf("bots reward: paid %s raw → %s (hash %.12s…)", faucetRewardRaw, addr, hash)
+		if h.db != nil {
+			dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer dbCancel()
+			if err := h.db.RecordFaucetPayout(dbCtx, "bot_kill", addr, ip, faucetRewardRaw, hash); err != nil {
+				log.Printf("bots reward DB: %v", err)
+			}
+		}
+	}()
 }
 
 // FaucetGamePageHandler serves the faucet game canvas page.
