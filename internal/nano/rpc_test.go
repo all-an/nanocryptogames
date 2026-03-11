@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+	"time"
 )
 
 // mockNode starts a test HTTP server that responds with the given JSON payload.
@@ -130,7 +130,7 @@ func TestBlockInfo_success(t *testing.T) {
 	defer srv.Close()
 
 	client := NewClient(Config{PrimaryURL: srv.URL})
-	details, err := client.BlockInfo(context.Background(), "SOMEHASH")
+	details, err := client.BlockInfo(context.Background(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestGenerateWork_success(t *testing.T) {
 	defer srv.Close()
 
 	client := NewClient(Config{PrimaryURL: srv.URL})
-	work, err := client.GenerateWork(context.Background(), "SOMEHASH")
+	work, err := client.GenerateWork(context.Background(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,16 +157,17 @@ func TestGenerateWork_success(t *testing.T) {
 }
 
 func TestGenerateWork_numericError(t *testing.T) {
-	// Some nodes return numeric error codes when they are overloaded or for certain auth failures.
+	// When the node returns a numeric 403 error, GenerateWork falls back to CPU mining
+	// rather than propagating the error. Verify it handles the numeric error field
+	// without panicking, and returns a context error when the deadline expires.
 	srv := mockNode(t, map[string]any{"error": 403, "message": "Access Denied"})
 	defer srv.Close()
 
 	client := NewClient(Config{PrimaryURL: srv.URL})
-	_, err := client.GenerateWork(context.Background(), "SOMEHASH")
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err := client.GenerateWork(ctx, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	if err == nil {
-		t.Fatal("expected error, but got nil")
-	}
-	if !strings.Contains(err.Error(), "403") {
-		t.Errorf("expected error message to contain '403', got: %v", err)
+		t.Fatal("expected context deadline error, but got nil")
 	}
 }

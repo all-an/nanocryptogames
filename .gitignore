@@ -36,3 +36,5 @@ draft.md
 # Log files
 *.log
 server.log
+
+coverage

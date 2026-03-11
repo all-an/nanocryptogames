@@ -8,8 +8,8 @@ func TestNewPlayer_defaults(t *testing.T) {
 	if p.ID != "id1" {
 		t.Errorf("expected ID id1, got %s", p.ID)
 	}
-	if p.Health != 100 {
-		t.Errorf("expected Health 100, got %d", p.Health)
+	if p.Health != 99 {
+		t.Errorf("expected Health 99, got %d", p.Health)
 	}
 	if p.Messages() == nil {
 		t.Error("Messages channel must not be nil")

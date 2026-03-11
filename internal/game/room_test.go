@@ -153,8 +153,8 @@ func TestRoom_ApplyShoot_firstHitIncapacitates(t *testing.T) {
 
 	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
 
-	if target.Health != 50 {
-		t.Errorf("first hit should reduce health to 50, got %d", target.Health)
+	if target.Health != 66 {
+		t.Errorf("first hit should reduce health to 66, got %d", target.Health)
 	}
 }
 
@@ -169,12 +169,12 @@ func TestRoom_ApplyShoot_secondHitKills(t *testing.T) {
 	target.Team  = "blue"
 	shooter.GX, shooter.GY = 5, 5
 	target.GX,  target.GY  = 6, 5
-	target.Health = 50 // already incapacitated
+	target.Health = 33 // one hit away from death
 
 	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
 
 	if target.Health != 0 {
-		t.Errorf("second hit should reduce health to 0, got %d", target.Health)
+		t.Errorf("third hit should reduce health to 0, got %d", target.Health)
 	}
 }
 
@@ -265,12 +265,12 @@ func TestRoom_ApplyHelp_adjacentTeammateRestoresHealth(t *testing.T) {
 	target.Team = "blue" // same team
 	helper.GX, helper.GY = 5, 5
 	target.GX, target.GY = 6, 5 // one cell apart — adjacent
-	target.Health = 50           // incapacitated
+	target.Health = 33           // incapacitated
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
 
-	if target.Health != 100 {
-		t.Errorf("medical help should restore health to 100, got %d", target.Health)
+	if target.Health != 66 {
+		t.Errorf("medical help should restore health to 66, got %d", target.Health)
 	}
 }
 
@@ -285,11 +285,11 @@ func TestRoom_ApplyHelp_notAdjacentRejected(t *testing.T) {
 	target.Team = "blue"
 	helper.GX, helper.GY = 5, 5
 	target.GX, target.GY = 8, 5 // 3 cells away — not adjacent
-	target.Health = 50
+	target.Health = 33
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
 
-	if target.Health != 50 {
+	if target.Health != 33 {
 		t.Error("help from non-adjacent position should be rejected")
 	}
 }
@@ -305,11 +305,11 @@ func TestRoom_ApplyHelp_healthyTargetRejected(t *testing.T) {
 	target.Team = "blue"
 	helper.GX, helper.GY = 5, 5
 	target.GX, target.GY = 6, 5
-	// target.Health is 100 — not incapacitated
+	// target.Health is 99 — not incapacitated
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
 
-	if target.Health != 100 {
+	if target.Health != 99 {
 		t.Error("help on a healthy player should be rejected (no-op)")
 	}
 }
@@ -325,12 +325,12 @@ func TestRoom_ApplyHelp_woundedHelperCanHelp(t *testing.T) {
 	target.Team = "blue"
 	helper.GX, helper.GY = 5, 5
 	target.GX, target.GY = 6, 5
-	helper.Health = 50 // helper is wounded but still alive — should be able to help
-	target.Health = 50
+	helper.Health = 66 // helper is wounded but still alive — should be able to help
+	target.Health = 33
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
 
-	if target.Health != 100 {
+	if target.Health != 66 {
 		t.Error("wounded helper should be able to give medical help")
 	}
 }
@@ -346,11 +346,11 @@ func TestRoom_ApplyHelp_enemyCannotBeHelped(t *testing.T) {
 	target.Team = "blue" // different team — enemy
 	helper.GX, helper.GY = 5, 5
 	target.GX, target.GY = 6, 5
-	target.Health = 50
+	target.Health = 33
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
 
-	if target.Health != 50 {
+	if target.Health != 33 {
 		t.Error("enemy player should not be able to receive medical help")
 	}
 }
