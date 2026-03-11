@@ -11,6 +11,11 @@ const ROWS        = 17;
 const MOVE_RADIUS = 5.0;
 const MOVE_SPEED  = 6;
 
+const DOOR_GX = 24; // far-right portal — step on it to advance to stage 2
+const DOOR_GY = 8;
+
+let stage = 1;
+
 const MAX_AMMO      = 10;
 const RELOAD_TIME   = 5000;
 const SHOT_COOLDOWN = 600;
@@ -120,6 +125,9 @@ const BOT_DEFS = [
   { id: "bot3", spawnGX: 22, spawnGY: 15, color: "#9B59B6", nickname: "Bot 3" },
 ];
 
+// Stage-2 extra bot: spawns top-right and activates immediately alongside bot 3.
+const BOT4_DEF = { id: "bot0", spawnGX: 24, spawnGY: 1, color: "#FF6B35", nickname: "Bot 0" };
+
 let bots = [];
 
 function initBots() {
@@ -182,6 +190,31 @@ function checkHealPickup(entity) {
   healItems.splice(idx, 1);
   entity.health = Math.min(99, entity.health + 33);
   setTimeout(spawnOneHealItem, HEAL_ITEM_RESPAWN);
+}
+
+// ── Stage door ─────────────────────────────────────────────────────────────────
+
+// checkDoorEntry is called after every player move.
+// Stepping on the door cell while in stage 1 advances the game to stage 2.
+function checkDoorEntry() {
+  if (stage !== 1 || ME.gx !== DOOR_GX || ME.gy !== DOOR_GY) return;
+  advanceToStage2();
+}
+
+// advanceToStage2 unlocks stage 2: spawns Bot 0 who activates immediately with bot 3.
+function advanceToStage2() {
+  stage = 2;
+  showBotToast("⚠ Stage 2 — Bot 0 has entered!", true);
+  const bot0 = {
+    ...BOT4_DEF,
+    gx: BOT4_DEF.spawnGX, gy: BOT4_DEF.spawnGY,
+    health: 99, ammo: MAX_AMMO,
+    reloading: false, lastShotAt: 0,
+    lastMoveAt: Date.now() - BOT_MOVE_INTERVAL,
+    team: "blue",
+  };
+  bots.push(bot0);
+  ensureVisual(bot0);
 }
 
 // ── Ammo badge ─────────────────────────────────────────────────────────────────
@@ -334,6 +367,7 @@ function applyPlayerMove(gx, gy) {
   }
   ME.gx = gx; ME.gy = gy;
   checkHealPickup(ME);
+  checkDoorEntry();
 }
 
 // ── Player shoot ───────────────────────────────────────────────────────────────
@@ -386,6 +420,11 @@ let bot3ReachedCenter = false;
 function botTick() {
   const now = Date.now();
   const globalShotReady = now - lastBotShotAt >= BOT_GLOBAL_SHOT_CD;
+
+  // Also activate bots 1 and 2 if the player ventures into the right half.
+  if (!bot3ReachedCenter && ME.gx > CENTER_GX) {
+    bot3ReachedCenter = true;
+  }
 
   for (let bi = 0; bi < bots.length; bi++) {
     const bot = bots[bi];
@@ -498,6 +537,7 @@ function checkRoundOver() {
 }
 
 function restartRound() {
+  stage = 1;
   ME.health = 99; ME.gx = ME.spawnGX; ME.gy = ME.spawnGY;
   ME.ammo = MAX_AMMO; ME.reloading = false;
   clearTimeout(reloadTimer); clearTimeout(reloadCountdown);
@@ -506,15 +546,14 @@ function restartRound() {
   const meV = playerVisuals[ME.id];
   if (meV) { meV.gridX = ME.gx; meV.gridY = ME.gy; meV.waypoints = []; }
 
-  const now2 = Date.now();
-  const stagger2 = Math.floor(BOT_MOVE_INTERVAL / bots.length);
-  bots.forEach((bot, i) => {
-    bot.health = 99; bot.gx = bot.spawnGX; bot.gy = bot.spawnGY;
-    bot.ammo = MAX_AMMO; bot.reloading = false;
-    bot.lastMoveAt = now2 - BOT_MOVE_INTERVAL + i * stagger2;
+  // Drop the stage-2 extra bot and reset to the base 3-bot roster.
+  delete playerVisuals[BOT4_DEF.id];
+  initBots();
+  for (const bot of bots) {
+    ensureVisual(bot);
     const bv = playerVisuals[bot.id];
     if (bv) { bv.gridX = bot.gx; bv.gridY = bot.gy; bv.waypoints = []; }
-  });
+  }
 
   lastBotShotAt = 0;
   bot3ReachedCenter = false;
@@ -610,6 +649,7 @@ function draw() {
     drawCellHighlight(hoverCell.gx, hoverCell.gy, "rgba(255,255,255,0.10)");
   drawBarriers();
   drawHealItems();
+  drawDoor();
   const allEntities = [ME, ...bots];
   for (const entity of allEntities) {
     const v = playerVisuals[entity.id];
@@ -659,6 +699,22 @@ function drawBarriers() {
     ctx.fillStyle = "#b0b0c8"; ctx.fillRect(x, y, CELL, 5); ctx.fillRect(x, y, 5, CELL);
     ctx.fillStyle = "#2a2a3a"; ctx.fillRect(x, y + CELL - 5, CELL, 5); ctx.fillRect(x + CELL - 5, y, 5, CELL);
   }
+}
+
+function drawDoor() {
+  if (stage !== 1) return;
+  const x = DOOR_GX * CELL, y = DOOR_GY * CELL;
+  // Background glow
+  ctx.fillStyle = "#1a4a1a";
+  ctx.fillRect(x, y, CELL, CELL);
+  ctx.fillStyle = "#2a7a2a";
+  ctx.fillRect(x + 3, y + 3, CELL - 6, CELL - 6);
+  // Arrow
+  ctx.fillStyle = "#52C07A";
+  ctx.font = "bold 20px system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("▶", x + CELL / 2, y + CELL / 2);
 }
 
 function drawHealItems() {
