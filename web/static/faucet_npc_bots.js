@@ -379,12 +379,20 @@ function tryShootAt(gx, gy) {
 
 let lastBotShotAt = 0; // global cooldown so only one bot shoots at a time
 
+// Bot 3 must reach the center column before bots 1 and 2 activate.
+const CENTER_GX = Math.floor(COLS / 2); // col 12 — the visible dashed midline
+let bot3ReachedCenter = false;
+
 function botTick() {
   const now = Date.now();
   const globalShotReady = now - lastBotShotAt >= BOT_GLOBAL_SHOT_CD;
 
-  for (const bot of bots) {
+  for (let bi = 0; bi < bots.length; bi++) {
+    const bot = bots[bi];
     if (bot.health === 0) continue;
+
+    // Bots 1 and 2 (indices 0 and 1) are frozen until Bot 3 reaches the center.
+    if (bi < 2 && !bot3ReachedCenter) continue;
 
     const canShoot = globalShotReady && !bot.reloading && bot.ammo > 0 &&
                      (now - bot.lastShotAt >= BOT_SHOT_COOLDOWN);
@@ -403,6 +411,10 @@ function botTick() {
         botChasePlayer(bot);
       } else {
         botWander(bot);
+      }
+      // Unlock bots 1 and 2 once Bot 3 crosses the center line.
+      if (bi === 2 && !bot3ReachedCenter && bot.gx <= CENTER_GX) {
+        bot3ReachedCenter = true;
       }
     }
   }
@@ -505,6 +517,7 @@ function restartRound() {
   });
 
   lastBotShotAt = 0;
+  bot3ReachedCenter = false;
   roundActive = true;
 }
 
