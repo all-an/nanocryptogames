@@ -140,7 +140,7 @@ function initBots() {
     reloading: false, lastShotAt: 0,
     // Each bot gets a different initial offset so they move one at a time.
     lastMoveAt: now - BOT_MOVE_INTERVAL + i * stagger,
-    team: "blue",
+    team: "blue", forcedActive: false,
   }));
 }
 
@@ -390,23 +390,57 @@ function tryShootAt(gx, gy) {
   const dist = Math.sqrt((toPx - myV.px) ** 2 + (toPy - myV.py) ** 2);
   const duration = Math.max(100, dist / 2);
 
-  bullets.push({ fromPx: myV.px, fromPy: myV.py, toPx, toPy,
-                 startTime: performance.now(), duration,
-                 spawnImpactOnEnd: !!hit });
+  const bullet = { fromPx: myV.px, fromPy: myV.py, toPx, toPy,
+                   startTime: performance.now(), duration,
+                   spawnImpactOnEnd: !!hit, blocked: false };
+  bullets.push(bullet);
   ME.ammo--;
   updateAmmoBadge();
 
   if (hit) {
     setTimeout(() => {
+      if (bullet.blocked) return; // bullet was stopped by a wall
       const bot = hit.bot;
       if (bot.health === 0) return;
       bot.health = Math.max(0, bot.health - 33);
       if (bot.health === 0) {
-        claimBotKillReward();
-        checkRoundOver();
+        onBotDied(bot);
       }
     }, duration);
   }
+}
+
+// ── Bot death callbacks ────────────────────────────────────────────────────────
+
+// onBotDied is called immediately after a bot's health reaches zero.
+function onBotDied(bot) {
+  claimBotKillReward();
+
+  if (bot.id === "bot1") {
+    // Bot 1 died — wake bot 2 if still alive.
+    const b2 = bots.find(b => b.id === "bot2");
+    if (b2 && b2.health > 0) b2.forcedActive = true;
+  } else if (bot.id === "bot2") {
+    // Bot 2 died — wake bot 1 if still alive.
+    const b1 = bots.find(b => b.id === "bot1");
+    if (b1 && b1.health > 0) b1.forcedActive = true;
+  } else if (bot.id === "bot3") {
+    // Bot 3 died — give player 10 s to cross; otherwise force-wake bots 1 and 2.
+    startBot3DeadCountdown();
+  }
+
+  checkRoundOver();
+}
+
+// startBot3DeadCountdown activates bots 1 and 2 after 10 s if the player has
+// not yet crossed the center line.
+function startBot3DeadCountdown() {
+  if (bot3DeadTimer !== null) return;
+  bot3DeadTimer = setTimeout(() => {
+    bot3DeadTimer = null;
+    if (bot3ReachedCenter) return; // player already crossed — nothing to do
+    bot3ReachedCenter = true;
+  }, 10000);
 }
 
 // ── Bot AI ─────────────────────────────────────────────────────────────────────
@@ -416,6 +450,7 @@ let lastBotShotAt = 0; // global cooldown so only one bot shoots at a time
 // Bot 3 must reach the center column before bots 1 and 2 activate.
 const CENTER_GX = Math.floor(COLS / 2); // col 12 — the visible dashed midline
 let bot3ReachedCenter = false;
+let bot3DeadTimer = null; // 10-s countdown started when bot 3 dies
 
 function botTick() {
   const now = Date.now();
@@ -430,8 +465,8 @@ function botTick() {
     const bot = bots[bi];
     if (bot.health === 0) continue;
 
-    // Bots 1 and 2 (indices 0 and 1) are frozen until Bot 3 reaches the center.
-    if (bi < 2 && !bot3ReachedCenter) continue;
+    // Bots 1 and 2 (indices 0 and 1) are frozen until globally or individually activated.
+    if (bi < 2 && !bot3ReachedCenter && !bot.forcedActive) continue;
 
     const canShoot = globalShotReady && !bot.reloading && bot.ammo > 0 &&
                      (now - bot.lastShotAt >= BOT_SHOT_COOLDOWN);
@@ -473,10 +508,12 @@ function botShoot(bot) {
 
   const dist = Math.sqrt((pv.px - bv.px) ** 2 + (pv.py - bv.py) ** 2);
   const duration = Math.max(100, dist / 2);
-  bullets.push({ fromPx: bv.px, fromPy: bv.py, toPx: pv.px, toPy: pv.py,
-                 startTime: performance.now(), duration, spawnImpactOnEnd: false });
+  const bullet = { fromPx: bv.px, fromPy: bv.py, toPx: pv.px, toPy: pv.py,
+                   startTime: performance.now(), duration, spawnImpactOnEnd: false, blocked: false };
+  bullets.push(bullet);
 
   setTimeout(() => {
+    if (bullet.blocked) return; // bullet was stopped by a wall
     if (ME.health === 0) return;
     ME.health = Math.max(0, ME.health - 33);
     if (ME.health === 0) onPlayerDied();
@@ -557,6 +594,8 @@ function restartRound() {
 
   lastBotShotAt = 0;
   bot3ReachedCenter = false;
+  clearTimeout(bot3DeadTimer);
+  bot3DeadTimer = null;
   roundActive = true;
 }
 
@@ -809,6 +848,7 @@ function drawBullets() {
     const bpx = b.fromPx + (b.toPx - b.fromPx) * t;
     const bpy = b.fromPy + (b.toPy - b.fromPy) * t;
     if (isBarrier(Math.floor(bpx / CELL), Math.floor(bpy / CELL))) {
+      b.blocked = true; // abort any pending damage setTimeout for this bullet
       wallImpacts.push({ px: bpx, py: bpy, startTime: performance.now(), duration: 250 });
       bullets.splice(i, 1); continue;
     }
