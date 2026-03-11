@@ -68,7 +68,7 @@ async function claimBotKillReward() {
       const badge = document.getElementById("faucet-earned");
       if (badge) {
         badge.classList.remove("hidden");
-        badge.textContent = `Ӿ Earned: ${totalEarned * 0.00001} XNO`;
+        badge.textContent = `Ӿ Earned: ${(totalEarned * 0.00001).toFixed(5)} XNO`;
       }
     } else if (res.status === 429) {
       showBotToast("Daily faucet limit reached.", false);
