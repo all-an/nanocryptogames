@@ -1,6 +1,0 @@
-nimcache/
-.nimble/
-*.nimble.lock
-*.exe
-nim-ssr
-server
