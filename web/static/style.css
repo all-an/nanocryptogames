@@ -669,6 +669,32 @@ canvas {
   background: #357abd;
 }
 
+.back-btn {
+  position: fixed;
+  top: 16px;
+  left: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #4a90d9;
+  background: rgba(74, 144, 217, 0.12);
+  color: #4a90d9;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  z-index: 100;
+}
+
+.back-btn:hover {
+  background: #4a90d9;
+  color: #fff;
+  border-color: #4a90d9;
+}
+
 .btn-secondary {
   background: #1e1e30 !important;
   color: #888 !important;

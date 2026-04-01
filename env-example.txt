@@ -1,0 +1,8 @@
+DATABASE_URL=postgres://nano:nano@localhost:5432/nano_crypto_games_local_db?sslmode=disable
+DONATION_ADDRESS=
+FAUCET_SEED=
+FAUCET_TEST_MODE=false
+NANO_MASTER_SEED=
+NANO_RPC_API_KEY=
+NANO_RPC_FALLBACK_URL=https://us-1.nano.to
+NANO_RPC_PRIMARY_URL=https://rpc.nano.to

@@ -113,11 +113,6 @@ func main() {
 	// ── Templates ────────────────────────────────────────────────────────────
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
 	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_game/*.html"))
-	tmpl = template.Must(tmpl.ParseGlob("internal/templates/paid_game/*.html"))
-
-	// ── Hub + WS handler (paid game) ─────────────────────────────────────────
-	hub := game.NewHub()
-	wsHandler := handler.NewWSHandler(hub, database, masterSeed, rpcClient)
 
 	// ── Faucet hub + wallet ───────────────────────────────────────────────────
 	faucetHub := game.NewFaucetHub()
@@ -153,16 +148,6 @@ func main() {
 		http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
 	mux.Handle("GET /", handler.NewLandingHandler(tmpl, database, faucetAddr))
-	mux.Handle("GET /welcome", handler.NewWelcomeHandler(tmpl))
-	mux.Handle("GET /lobby", handler.NewLobbyHandler(tmpl))
-
-	gamePage := handler.NewGamePageHandler(tmpl)
-	mux.Handle("GET /game", gamePage)
-	mux.Handle("GET /game/{roomID}", gamePage)
-
-	mux.Handle("GET /api/rooms", handler.NewRoomsHandler(hub))
-
-	mux.Handle("GET /ws/{roomID}", wsHandler)
 
 	// ── Faucet routes ─────────────────────────────────────────────────────────
 	faucetGamePage := handler.NewFaucetGamePageHandler(tmpl, faucetAddr)

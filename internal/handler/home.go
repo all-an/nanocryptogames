@@ -1,4 +1,4 @@
-// home.go serves the landing page (mode selector) and the paid-mode welcome page.
+// home.go serves the landing page (mode selector).
 package handler
 
 import (
@@ -10,9 +10,9 @@ import (
 
 // LandingHandler serves the top-level mode-selector page.
 type LandingHandler struct {
-	tmpl        *template.Template
-	db          *db.DB
-	faucetAddr  string
+	tmpl       *template.Template
+	db         *db.DB
+	faucetAddr string
 }
 
 // NewLandingHandler wires up the landing template and optional DB for settings.
@@ -35,18 +35,4 @@ func (h *LandingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"DisablePaid":   disablePaid,
 		"FaucetAddress": h.faucetAddr,
 	})
-}
-
-// WelcomeHandler serves the paid-multiplayer welcome/info page.
-type WelcomeHandler struct {
-	tmpl *template.Template
-}
-
-// NewWelcomeHandler wires up the welcome template.
-func NewWelcomeHandler(tmpl *template.Template) *WelcomeHandler {
-	return &WelcomeHandler{tmpl: tmpl}
-}
-
-func (h *WelcomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.tmpl.ExecuteTemplate(w, "paid_welcome.html", nil)
 }
