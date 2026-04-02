@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Nano RPG — {{.Room}}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/faucet_multiplayer_rpg_static/rpg.css">
+</head>
+<body>
+  <div class="rpg-game-layout">
+
+    <!-- Header -->
+    <header class="rpg-game-header">
+      <span class="rpg-player-name">⚔️ <strong>{{.Username}}</strong></span>
+      <span class="rpg-room-label">World: <strong>{{.Room}}</strong></span>
+      <div class="rpg-header-actions">
+        <button id="wallet-btn" class="rpg-btn rpg-btn--sm">Ӿ Wallet</button>
+        <form method="POST" action="/rpg/logout" style="display:inline">
+          <button type="submit" class="rpg-btn rpg-btn--sm rpg-btn--danger">Leave</button>
+        </form>
+      </div>
+    </header>
+
+    <div class="rpg-main">
+
+      <!-- Game canvas -->
+      <div class="rpg-canvas-wrap">
+        <canvas id="rpg-canvas"
+          data-username="{{.Username}}"
+          data-room="{{.Room}}"
+          width="800" height="600"></canvas>
+        <p class="rpg-controls-hint">Move: <kbd>W A S D</kbd> or arrow keys &nbsp;·&nbsp; Click an adjacent cell to move &nbsp;·&nbsp; Type in chat to talk</p>
+      </div>
+
+      <!-- Side panel -->
+      <aside class="rpg-side">
+
+        <!-- Chat -->
+        <div class="rpg-chat-box" id="chat-box"></div>
+        <form id="chat-form" class="rpg-chat-form">
+          <input id="chat-input" type="text" placeholder="Say something…" maxlength="200" autocomplete="off">
+          <button type="submit" class="rpg-btn rpg-btn--sm">Send</button>
+        </form>
+
+        <!-- Players online -->
+        <div class="rpg-online-panel">
+          <h3>Online</h3>
+          <ul id="online-list" class="rpg-online-list"></ul>
+        </div>
+
+      </aside>
+    </div>
+
+  </div>
+
+  <!-- Wallet modal -->
+  <div id="wallet-modal" class="rpg-modal hidden" role="dialog" aria-modal="true">
+    <div class="rpg-modal-box">
+      <h2>Ӿ Game Wallet</h2>
+
+      <div class="rpg-wallet-warning">
+        ⚠️ <strong>This is a temporary game wallet.</strong> Withdraw your Nano to a real wallet after each session. Do not leave large amounts here.
+      </div>
+
+      <div class="rpg-wallet-address-label">Your game address:</div>
+      <div class="rpg-wallet-address" id="wallet-address">{{.NanoAddress}}</div>
+      <button id="copy-address-btn" class="rpg-btn rpg-btn--sm">⧉ Copy</button>
+      <p id="copy-confirm" class="rpg-copy-confirm hidden">Copied!</p>
+
+      <div class="rpg-balance-row">
+        Balance: <span id="wallet-balance">…</span> XNO
+      </div>
+
+      <hr class="rpg-divider">
+
+      <h3>Withdraw</h3>
+      <div class="rpg-withdraw-form">
+        <input id="withdraw-address" type="text" placeholder="nano_1your…address" class="rpg-input">
+        <div class="rpg-withdraw-row">
+          <input id="withdraw-amount" type="text" placeholder="Leave empty to withdraw all" class="rpg-input rpg-input--sm">
+          <button id="withdraw-btn" class="rpg-btn rpg-btn--primary">Send</button>
+        </div>
+        <p id="withdraw-msg" class="rpg-withdraw-msg"></p>
+      </div>
+
+      <button id="wallet-close" class="rpg-btn rpg-btn--secondary" style="margin-top:16px;width:100%;">Close</button>
+    </div>
+  </div>
+
+  <script src="/static/faucet_multiplayer_rpg_static/rpg.js" defer></script>
+</body>
+</html>

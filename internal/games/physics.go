@@ -1,6 +1,6 @@
 // physics.go contains grid constants, server-side move validation, and the
 // static barrier map used in faucet mode to give players cover.
-package game
+package games
 
 import "math"
 
@@ -15,9 +15,10 @@ const (
 // Mirrors the BARRIERS set in faucet_game.js — keep both in sync.
 //
 // Layout (25×17 grid):
-//   3×3 blocks at the four inner corners  → big cover pillars
-//   2×2 blocks flanking the centre lane   → mid-field cover
-//   1×1 single cells                      → small scattered cover
+//
+//	3×3 blocks at the four inner corners  → big cover pillars
+//	2×2 blocks flanking the centre lane   → mid-field cover
+//	1×1 single cells                      → small scattered cover
 var barrierCells = func() map[[2]int]bool {
 	b := make(map[[2]int]bool)
 	addBlock := func(col, row, size int) {

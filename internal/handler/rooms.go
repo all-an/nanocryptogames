@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/allanabrahao/nanomultiplayer/internal/game"
+	"github.com/allanabrahao/nanomultiplayer/internal/games"
 )
 
 // RoomsHandler returns a JSON array of currently active rooms.
 type RoomsHandler struct {
-	hub *game.Hub
+	hub *games.Hub
 }
 
 // NewRoomsHandler wires up the hub dependency.
-func NewRoomsHandler(hub *game.Hub) *RoomsHandler {
+func NewRoomsHandler(hub *games.Hub) *RoomsHandler {
 	return &RoomsHandler{hub: hub}
 }
 

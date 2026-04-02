@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
-	"github.com/allanabrahao/nanomultiplayer/internal/game"
+	"github.com/allanabrahao/nanomultiplayer/internal/games"
 	"github.com/allanabrahao/nanomultiplayer/internal/handler"
 	"github.com/allanabrahao/nanomultiplayer/internal/nano"
 	"github.com/joho/godotenv"
@@ -113,9 +113,10 @@ func main() {
 	// ── Templates ────────────────────────────────────────────────────────────
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
 	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_game/*.html"))
+	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_multiplayer_rpg_templates/*.html"))
 
 	// ── Faucet hub + wallet ───────────────────────────────────────────────────
-	faucetHub := game.NewFaucetHub()
+	faucetHub := games.NewFaucetHub()
 	if database != nil && database.FaucetDisableSameIPCheck(ctx) {
 		faucetHub.DisableSameIPCheck = true
 		log.Println("faucet: same-IP check disabled (faucet_disable_same_ip_check=true)")
@@ -159,6 +160,17 @@ func main() {
 	mux.Handle("GET /faucet/ws/{roomID}", faucetWSHandler)
 	mux.Handle("GET /faucet/bots", handler.NewFaucetBotsPageHandler(tmpl, faucetAddr))
 	mux.Handle("POST /faucet/bots/reward", handler.NewFaucetBotsRewardHandler(database, faucetSender))
+
+	// ── RPG routes ────────────────────────────────────────────────────────────
+	rpgHandler := handler.NewRPGHandler(tmpl, database, rpcClient, masterSeed)
+	mux.Handle("GET /rpg", rpgHandler.LoginPage())
+	mux.Handle("POST /rpg/register", rpgHandler.Register())
+	mux.Handle("POST /rpg/login", rpgHandler.Login())
+	mux.Handle("POST /rpg/logout", rpgHandler.Logout())
+	mux.Handle("GET /rpg/game", rpgHandler.GamePage())
+	mux.Handle("GET /rpg/ws", rpgHandler.WebSocket())
+	mux.Handle("GET /rpg/api/balance", rpgHandler.Balance())
+	mux.Handle("POST /rpg/withdraw", rpgHandler.Withdraw())
 
 	rpcTestHandler := handler.NewRPCTestHandler(tmpl, database, rpcClient, masterSeed)
 	mux.Handle("GET /rpc-test", rpcTestHandler)

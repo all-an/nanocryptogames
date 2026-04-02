@@ -1,4 +1,4 @@
-package game
+package games
 
 import (
 	"math"
@@ -61,28 +61,24 @@ func TestIsValidMove_adjacentCells(t *testing.T) {
 }
 
 func TestIsValidMove_diagonalWithinRadius(t *testing.T) {
-	// Diagonal distance is sqrt(2) ≈ 1.41 — well within radius 5.
 	if !isValidMove(5, 5, 6, 6) {
 		t.Error("diagonal one step should be valid within radius 5")
 	}
 }
 
 func TestIsValidMove_exactRadius(t *testing.T) {
-	// Move exactly 5 squares along one axis — on the boundary.
 	if !isValidMove(5, 5, 10, 5) {
 		t.Error("move of exactly radius 5 should be valid")
 	}
 }
 
 func TestIsValidMove_justBeyondRadius(t *testing.T) {
-	// Move 6 squares — just outside the radius.
 	if isValidMove(5, 5, 11, 5) {
 		t.Error("move of 6 squares should be invalid (beyond radius 5)")
 	}
 }
 
 func TestIsValidMove_diagonalBeyondRadius(t *testing.T) {
-	// (4,4) diagonal = sqrt(32) ≈ 5.66 — outside radius 5.
 	dist := math.Sqrt(float64(4*4 + 4*4))
 	if dist <= MovementRadius {
 		t.Fatalf("test assumption wrong: dist=%.2f should be > %.1f", dist, MovementRadius)
@@ -93,7 +89,6 @@ func TestIsValidMove_diagonalBeyondRadius(t *testing.T) {
 }
 
 func TestIsValidMove_diagonalWithinRadius5(t *testing.T) {
-	// (3,4) diagonal = 5.0 exactly — on the boundary.
 	dist := math.Sqrt(float64(3*3 + 4*4))
 	if math.Abs(dist-5.0) > 0.001 {
 		t.Fatalf("test assumption wrong: dist=%.4f should be 5.0", dist)

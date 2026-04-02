@@ -1,16 +1,16 @@
 // hub.go is the central registry of all active game rooms.
 // It replaces Redis pub/sub with a mutex-protected in-process map.
-package game
+package games
 
 import "sync"
 
 // Hub manages the set of live rooms.
 // All room creation and teardown is serialised through the Hub mutex.
 type Hub struct {
-	mu                   sync.Mutex
-	rooms                map[string]*Room
-	roomMode             string // mode passed to every new Room ("paid" or "faucet")
-	DisableSameIPCheck   bool   // when true, same-IP kills/heals still earn faucet rewards
+	mu                 sync.Mutex
+	rooms              map[string]*Room
+	roomMode           string // mode passed to every new Room ("paid" or "faucet")
+	DisableSameIPCheck bool   // when true, same-IP kills/heals still earn faucet rewards
 }
 
 // RoomSummary is a lightweight snapshot of a room used for the lobby listing.

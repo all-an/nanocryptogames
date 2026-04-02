@@ -1,5 +1,5 @@
 // room.go manages the lifecycle of a single game room and its tick loop.
-package game
+package games
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const healItemCount   = 4              // number of heal packs on the map at once
+const healItemCount   = 4               // number of heal packs on the map at once
 const healItemRespawn = 15 * time.Second // delay before a consumed pack reappears
 
 const tickRate = 50 * time.Millisecond // 20 TPS — used for state broadcast heartbeat
@@ -22,7 +22,6 @@ var defaultShotCostRaw, _ = new(big.Int).SetString("100000000000000000000000000"
 // faucetRewardXNO is the human-readable faucet reward amount shown in round-over messages.
 const faucetRewardXNO = "0.00001"
 
-// spawnPoints are fixed grid positions spread across the arena.
 // redSpawnPoints are fixed positions on the left side of the arena (GX ≤ 3).
 var redSpawnPoints = [][2]int{
 	{1, 1}, {1, 8}, {1, 15}, {2, 4}, {2, 12},
@@ -207,13 +206,6 @@ func (r *Room) Submit(input Input) {
 	}
 }
 
-// currentPlayerCount returns the number of players currently in the room.
-func (r *Room) currentPlayerCount() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return len(r.players)
-}
-
 // teamCounts returns the number of red and blue players currently in the room.
 func (r *Room) teamCounts() (red, blue int) {
 	r.mu.RLock()
@@ -321,8 +313,7 @@ func (r *Room) applyMove(input Input) {
 }
 
 // applyShoot handles a shoot action: validates, deducts shot cost, applies damage,
-// and on a kill awards the prize (2 × shot_cost refund + 1 × shot_cost bonus)
-// then schedules a round restart after 3 seconds.
+// and on a kill awards the prize then schedules a round restart after 3 seconds.
 func (r *Room) applyShoot(input Input) {
 	r.mu.Lock()
 
@@ -345,14 +336,12 @@ func (r *Room) applyShoot(input Input) {
 	}
 
 	// In paid mode, validate that the target is within shooting range.
-	// In faucet mode the range cap is removed — any enemy on the map can be shot
-	// as long as line-of-sight is not blocked by a barrier.
 	if r.Mode != "faucet" && !isValidMove(shooter.GX, shooter.GY, target.GX, target.GY) {
 		r.mu.Unlock()
 		return
 	}
 
-	// In faucet mode, barriers block line-of-sight — players can hide behind them.
+	// In faucet mode, barriers block line-of-sight.
 	if r.Mode == "faucet" && !HasLineOfSight(shooter.GX, shooter.GY, target.GX, target.GY) {
 		r.mu.Unlock()
 		return
@@ -368,8 +357,7 @@ func (r *Room) applyShoot(input Input) {
 	target.Health -= 33
 	isKill := target.Health == 0
 
-	// After a kill, check whether every player on the target's team is now dead.
-	// The round only ends when the entire team is eliminated.
+	// Check whether every player on the target's team is now dead.
 	teamWiped := false
 	if isKill {
 		teamWiped = true
@@ -391,11 +379,8 @@ func (r *Room) applyShoot(input Input) {
 		p.Send(evt)
 	}
 
-	// On a kill: notify the victim, award prize, and signal faucet payout.
-	// Round-over is only broadcast when the whole team has been wiped.
 	var prizeXNO string
 	if isKill {
-		// Tell the killed player to show their death overlay.
 		diedMsg, _ := json.Marshal(map[string]string{"type": "died"})
 		target.Send(diedMsg)
 
@@ -403,13 +388,12 @@ func (r *Room) applyShoot(input Input) {
 			prize := new(big.Int).Mul(r.shotCostRaw, big.NewInt(3))
 			shooter.BalanceRaw.Add(shooter.BalanceRaw, prize)
 			shooterBalanceXNO = shooter.BalanceXNO()
-			prizeXNO = FormatXNO(r.shotCostRaw) // net gain = 1 × shot_cost
+			prizeXNO = FormatXNO(r.shotCostRaw)
 		} else {
 			prizeXNO = faucetRewardXNO
-			// Guard: only pay when killer and victim come from different IPs.
 			sameIP := !r.DisableSameIPCheck && shooter.RemoteAddr != "" && shooter.RemoteAddr == target.RemoteAddr
 			if sameIP {
-				log.Printf("faucet: same-IP kill blocked (IP %s) — set faucet_disable_same_ip_check=true in settings to allow", shooter.RemoteAddr)
+				log.Printf("faucet: same-IP kill blocked (IP %s)", shooter.RemoteAddr)
 				notice, _ := json.Marshal(map[string]string{
 					"type":    "faucet_sameip",
 					"message": "Please help the developer — be fair, play with other players, do not try to cheat the game 🙏",
@@ -423,7 +407,6 @@ func (r *Room) applyShoot(input Input) {
 			}
 		}
 
-		// Broadcast round-over only when the entire target team is eliminated.
 		if teamWiped {
 			roundOver, _ := json.Marshal(roundOverEvent{
 				Type:     "roundover",
@@ -438,13 +421,11 @@ func (r *Room) applyShoot(input Input) {
 
 	r.mu.Unlock()
 
-	// Send updated balance privately to the shooter (paid mode only).
 	if r.Mode != "faucet" {
 		balMsg, _ := json.Marshal(balanceEvent{Type: "balance", XNO: shooterBalanceXNO, Raw: shooter.BalanceRaw.String()})
 		shooter.Send(balMsg)
 	}
 
-	// Restart the round only once the whole team has been wiped.
 	if teamWiped {
 		go func() {
 			time.Sleep(3 * time.Second)
@@ -454,7 +435,6 @@ func (r *Room) applyShoot(input Input) {
 }
 
 // applyReload notifies all other players that a player has started reloading.
-// Only living players can broadcast a reload signal.
 func (r *Room) applyReload(input Input) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -477,15 +457,14 @@ func (r *Room) applyReload(input Input) {
 }
 
 // applyHelp handles a medical help action.
-// A healthy player adjacent (Chebyshev distance ≤ 1) to an incapacitated teammate
-// can give medical help, restoring the target to full health.
+// A player adjacent to an incapacitated teammate can restore them to partial health.
 func (r *Room) applyHelp(input Input) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	helper, ok := r.players[input.PlayerID]
 	if !ok || helper.Health == 0 {
-		return // only living players (healthy or wounded) can give medical help
+		return
 	}
 
 	target, ok := r.players[input.TargetID]
@@ -493,12 +472,10 @@ func (r *Room) applyHelp(input Input) {
 		return // can only help incapacitated players (health == 33)
 	}
 
-	// Can only help a teammate.
 	if helper.Team != target.Team {
 		return
 	}
 
-	// Helper must be standing next to the target (Chebyshev distance ≤ 1).
 	dx := helper.GX - target.GX
 	dy := helper.GY - target.GY
 	if dx < -1 || dx > 1 || dy < -1 || dy > 1 {
@@ -507,12 +484,10 @@ func (r *Room) applyHelp(input Input) {
 
 	target.Health += 33
 
-	// In faucet mode, signal the WS handler to send a heal reward to the helper.
-	// Apply the same same-IP guard as kills so players can't farm by healing their own alt tabs.
 	if r.Mode == "faucet" && helper.FaucetRewardCh != nil {
 		sameIP := !r.DisableSameIPCheck && helper.RemoteAddr != "" && helper.RemoteAddr == target.RemoteAddr
 		if sameIP {
-			log.Printf("faucet: same-IP heal blocked (IP %s) — set faucet_disable_same_ip_check=true in settings to allow", helper.RemoteAddr)
+			log.Printf("faucet: same-IP heal blocked (IP %s)", helper.RemoteAddr)
 			notice, _ := json.Marshal(map[string]string{
 				"type":    "faucet_sameip",
 				"message": "Please help the developer — be fair, play with other players, do not try to cheat the game 🙏",
@@ -526,7 +501,6 @@ func (r *Room) applyHelp(input Input) {
 		}
 	}
 
-	// Notify all players so they can show a visual cue.
 	evt, _ := json.Marshal(helpEvent{
 		Type:     "helped",
 		HelperID: input.PlayerID,
@@ -537,8 +511,7 @@ func (r *Room) applyHelp(input Input) {
 	}
 }
 
-// restartRound resets every player to full health at their spawn position and
-// broadcasts a "newround" event followed by the updated world state.
+// restartRound resets every player to full health at their spawn position.
 func (r *Room) restartRound() {
 	r.mu.Lock()
 
@@ -550,7 +523,6 @@ func (r *Room) restartRound() {
 	}
 
 	r.mu.Unlock()
-
 	r.broadcastState()
 }
 

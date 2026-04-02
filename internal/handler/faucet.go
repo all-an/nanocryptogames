@@ -19,7 +19,7 @@ import (
 	"unicode"
 
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
-	"github.com/allanabrahao/nanomultiplayer/internal/game"
+	"github.com/allanabrahao/nanomultiplayer/internal/games"
 	"github.com/allanabrahao/nanomultiplayer/internal/nano"
 	"github.com/gorilla/websocket"
 )
@@ -305,14 +305,14 @@ func (h *FaucetGamePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 // FaucetWSHandler upgrades HTTP connections to WebSocket for faucet game sessions.
 // All Nano reward sends go through the shared FaucetSender (serialised + PoW-cached).
 type FaucetWSHandler struct {
-	hub      *game.Hub
+	hub      *games.Hub
 	db       *db.DB
 	sender   *FaucetSender
 	testMode bool // when true, bypass anti-abuse checks (FAUCET_TEST_MODE=true)
 }
 
 // NewFaucetWSHandler wires up all faucet WebSocket dependencies.
-func NewFaucetWSHandler(hub *game.Hub, database *db.DB, sender *FaucetSender) *FaucetWSHandler {
+func NewFaucetWSHandler(hub *games.Hub, database *db.DB, sender *FaucetSender) *FaucetWSHandler {
 	return &FaucetWSHandler{
 		hub:      hub,
 		db:       database,
@@ -333,7 +333,7 @@ func (h *FaucetWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p := game.NewPlayer(newID(), roomID)
+	p := games.NewPlayer(newID(), roomID)
 
 	// Team — default to "red".
 	team := r.URL.Query().Get("team")
@@ -363,8 +363,6 @@ func (h *FaucetWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.FaucetAddress = strings.TrimSpace(r.URL.Query().Get("address"))
 
 	// Client IP — used for anti-abuse same-IP kill detection.
-	// In test mode the IP is left blank so all checks are skipped,
-	// allowing multiple tabs from the same machine to earn rewards.
 	if !h.testMode {
 		p.RemoteAddr = faucetClientIP(r)
 	}
@@ -412,23 +410,18 @@ func (h *FaucetWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *FaucetWSHandler) walletAddr() string { return h.sender.WalletAddr() }
 
 // payoutLoop reads reward signals from the room and sends on-chain payments sequentially.
-// Running one payout at a time per player keeps FaucetEarned race-free and ensures
-// the global sendMu is not held longer than one Nano round-trip per reward.
-func (h *FaucetWSHandler) payoutLoop(ctx context.Context, p *game.Player) {
+func (h *FaucetWSHandler) payoutLoop(ctx context.Context, p *games.Player) {
 	for {
 		select {
 		case reason, ok := <-p.FaucetRewardCh:
 			if !ok {
 				return
 			}
-			// Use a detached context so the payment completes even if the
-			// player disconnects before the on-chain send finishes.
 			payCtx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 			h.sendReward(payCtx, p, reason)
 			cancel()
 		case <-ctx.Done():
-			// Drain any pending rewards before exiting so kills just before
-			// disconnect still get paid out.
+			// Drain any pending rewards before exiting.
 			for {
 				select {
 				case reason, ok := <-p.FaucetRewardCh:
@@ -447,7 +440,7 @@ func (h *FaucetWSHandler) payoutLoop(ctx context.Context, p *game.Player) {
 }
 
 // sendReward executes a single faucet payout: daily-limit check → nano.Send → notify player.
-func (h *FaucetWSHandler) sendReward(ctx context.Context, p *game.Player, reason string) {
+func (h *FaucetWSHandler) sendReward(ctx context.Context, p *games.Player, reason string) {
 	if !h.sender.IsConfigured() {
 		return
 	}
@@ -472,7 +465,6 @@ func (h *FaucetWSHandler) sendReward(ctx context.Context, p *game.Player, reason
 		}
 	}
 
-	// All sends are serialised inside FaucetSender; pre-cached PoW makes them near-instant.
 	hash, err := h.sender.Send(ctx, p.FaucetAddress, faucetRewardRaw)
 
 	if err != nil {
@@ -494,7 +486,7 @@ func (h *FaucetWSHandler) sendReward(ctx context.Context, p *game.Player, reason
 		"type":   "faucet_reward",
 		"reason": reason,
 		"xno":    "0.000010",
-		"earned": game.FormatXNO(p.FaucetEarned),
+		"earned": games.FormatXNO(p.FaucetEarned),
 	})
 	p.Send(b)
 
@@ -509,8 +501,7 @@ func (h *FaucetWSHandler) sendReward(ctx context.Context, p *game.Player, reason
 }
 
 // faucetReadPump reads WebSocket messages and dispatches game actions.
-// Unlike the paid-mode readPump there is no withdraw or deposit handling.
-func (h *FaucetWSHandler) faucetReadPump(conn *websocket.Conn, p *game.Player, room *game.Room) {
+func (h *FaucetWSHandler) faucetReadPump(conn *websocket.Conn, p *games.Player, room *games.Room) {
 	defer conn.Close()
 
 	for {
@@ -531,7 +522,7 @@ func (h *FaucetWSHandler) faucetReadPump(conn *websocket.Conn, p *game.Player, r
 
 		switch raw.Action {
 		case "move", "shoot", "help", "reload":
-			room.Submit(game.Input{
+			room.Submit(games.Input{
 				PlayerID: p.ID,
 				Action:   raw.Action,
 				GX:       raw.GX,
@@ -542,8 +533,7 @@ func (h *FaucetWSHandler) faucetReadPump(conn *websocket.Conn, p *game.Player, r
 	}
 }
 
-// faucetClientIP extracts the real client IP from the request, respecting
-// X-Forwarded-For and X-Real-IP headers for reverse-proxy deployments.
+// faucetClientIP extracts the real client IP from the request.
 func faucetClientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		if i := strings.Index(xff, ","); i != -1 {

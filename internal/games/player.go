@@ -1,5 +1,5 @@
 // player.go defines per-player state held in memory during a game session.
-package game
+package games
 
 import (
 	"fmt"

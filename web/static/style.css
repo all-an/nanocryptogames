@@ -696,13 +696,26 @@ canvas {
 }
 
 .btn-secondary {
-  background: #1e1e30 !important;
-  color: #888 !important;
+  background: transparent !important;
+  color: #6060a0 !important;
   border: 1px solid #2a2a4a !important;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  letter-spacing: 0.02em;
 }
 
 .btn-secondary:hover {
-  color: #fff !important;
+  color: #c0c0e0 !important;
+  border-color: #4a4a7a !important;
+  background: #1a1a30 !important;
+}
+
+.btn-secondary:active {
+  background: #12122a !important;
 }
 
 .btn-danger {

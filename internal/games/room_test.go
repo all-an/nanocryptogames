@@ -1,4 +1,4 @@
-package game
+package games
 
 import (
 	"encoding/json"
@@ -77,9 +77,8 @@ func TestRoom_ApplyInput_withinRadius(t *testing.T) {
 	r := NewRoom("test", "paid")
 	p := NewPlayer("p1", "test")
 	r.Join(p)
-	p.GX, p.GY = 5, 5 // place in centre so GX+5 stays within grid
+	p.GX, p.GY = 5, 5
 
-	// Move 5 squares right — exactly at the radius boundary.
 	target := p.GX + 5
 	r.applyInput(Input{PlayerID: "p1", GX: target, GY: p.GY})
 	if p.GX != target {
@@ -106,7 +105,6 @@ func TestRoom_ApplyInput_diagonalWithinRadius(t *testing.T) {
 	r.Join(p)
 	p.GX, p.GY = 5, 5
 
-	// (3,4) offset = Euclidean distance 5.0 — exactly on the boundary.
 	startGX := p.GX
 	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 3, GY: p.GY + 4})
 	if p.GX != startGX+3 {
@@ -131,7 +129,6 @@ func TestRoom_ApplyInput_clampsToGrid(t *testing.T) {
 	p := NewPlayer("p1", "test")
 	r.Join(p)
 
-	// Place player near right edge, move within radius but past grid boundary.
 	p.GX = GridCols - 2
 	r.applyInput(Input{PlayerID: "p1", GX: GridCols + 3, GY: p.GY})
 	if p.GX > GridCols-1 {
@@ -142,14 +139,14 @@ func TestRoom_ApplyInput_clampsToGrid(t *testing.T) {
 func TestRoom_ApplyShoot_firstHitIncapacitates(t *testing.T) {
 	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
-	target  := NewPlayer("target", "test")
+	target := NewPlayer("target", "test")
 	r.Join(shooter)
 	r.Join(target)
 
 	shooter.Team = "red"
-	target.Team  = "blue"
+	target.Team = "blue"
 	shooter.GX, shooter.GY = 5, 5
-	target.GX,  target.GY  = 6, 5
+	target.GX, target.GY = 6, 5
 
 	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
 
@@ -161,15 +158,15 @@ func TestRoom_ApplyShoot_firstHitIncapacitates(t *testing.T) {
 func TestRoom_ApplyShoot_secondHitKills(t *testing.T) {
 	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
-	target  := NewPlayer("target", "test")
+	target := NewPlayer("target", "test")
 	r.Join(shooter)
 	r.Join(target)
 
 	shooter.Team = "red"
-	target.Team  = "blue"
+	target.Team = "blue"
 	shooter.GX, shooter.GY = 5, 5
-	target.GX,  target.GY  = 6, 5
-	target.Health = 33 // one hit away from death
+	target.GX, target.GY = 6, 5
+	target.Health = 33
 
 	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
 
@@ -181,15 +178,15 @@ func TestRoom_ApplyShoot_secondHitKills(t *testing.T) {
 func TestRoom_ApplyShoot_deadShooterCannotShoot(t *testing.T) {
 	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
-	target  := NewPlayer("target", "test")
+	target := NewPlayer("target", "test")
 	r.Join(shooter)
 	r.Join(target)
 
 	shooter.Team = "red"
-	target.Team  = "blue"
+	target.Team = "blue"
 	shooter.GX, shooter.GY = 5, 5
-	target.GX,  target.GY  = 6, 5
-	shooter.Health = 0 // shooter is dead
+	target.GX, target.GY = 6, 5
+	shooter.Health = 0
 
 	startHealth := target.Health
 	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
@@ -202,14 +199,14 @@ func TestRoom_ApplyShoot_deadShooterCannotShoot(t *testing.T) {
 func TestRoom_ApplyShoot_outOfRangeRejected(t *testing.T) {
 	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
-	target  := NewPlayer("target", "test")
+	target := NewPlayer("target", "test")
 	r.Join(shooter)
 	r.Join(target)
 
 	shooter.Team = "red"
-	target.Team  = "blue"
+	target.Team = "blue"
 	shooter.GX, shooter.GY = 0, 0
-	target.GX,  target.GY  = 10, 0
+	target.GX, target.GY = 10, 0
 
 	startHealth := target.Health
 	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
@@ -222,14 +219,14 @@ func TestRoom_ApplyShoot_outOfRangeRejected(t *testing.T) {
 func TestRoom_ApplyShoot_teammateCannotBeShot(t *testing.T) {
 	r := NewRoom("test", "paid")
 	shooter := NewPlayer("shooter", "test")
-	target  := NewPlayer("target", "test")
+	target := NewPlayer("target", "test")
 	r.Join(shooter)
 	r.Join(target)
 
 	shooter.Team = "red"
-	target.Team  = "red" // same team
+	target.Team = "red"
 	shooter.GX, shooter.GY = 5, 5
-	target.GX,  target.GY  = 6, 5
+	target.GX, target.GY = 6, 5
 
 	startHealth := target.Health
 	r.applyInput(Input{Action: "shoot", PlayerID: "shooter", TargetID: "target"})
@@ -245,7 +242,7 @@ func TestRoom_ApplyMove_deadPlayerCannotMove(t *testing.T) {
 	r.Join(p)
 	p.GX, p.GY = 5, 5
 
-	p.Health = 0 // dead
+	p.Health = 0
 	startGX := p.GX
 	r.applyInput(Input{PlayerID: "p1", GX: p.GX + 1, GY: p.GY})
 
@@ -262,10 +259,10 @@ func TestRoom_ApplyHelp_adjacentTeammateRestoresHealth(t *testing.T) {
 	r.Join(target)
 
 	helper.Team = "blue"
-	target.Team = "blue" // same team
+	target.Team = "blue"
 	helper.GX, helper.GY = 5, 5
-	target.GX, target.GY = 6, 5 // one cell apart — adjacent
-	target.Health = 33           // incapacitated
+	target.GX, target.GY = 6, 5
+	target.Health = 33
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
 
@@ -284,7 +281,7 @@ func TestRoom_ApplyHelp_notAdjacentRejected(t *testing.T) {
 	helper.Team = "blue"
 	target.Team = "blue"
 	helper.GX, helper.GY = 5, 5
-	target.GX, target.GY = 8, 5 // 3 cells away — not adjacent
+	target.GX, target.GY = 8, 5
 	target.Health = 33
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
@@ -305,7 +302,6 @@ func TestRoom_ApplyHelp_healthyTargetRejected(t *testing.T) {
 	target.Team = "blue"
 	helper.GX, helper.GY = 5, 5
 	target.GX, target.GY = 6, 5
-	// target.Health is 99 — not incapacitated
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
 
@@ -325,7 +321,7 @@ func TestRoom_ApplyHelp_woundedHelperCanHelp(t *testing.T) {
 	target.Team = "blue"
 	helper.GX, helper.GY = 5, 5
 	target.GX, target.GY = 6, 5
-	helper.Health = 66 // helper is wounded but still alive — should be able to help
+	helper.Health = 66
 	target.Health = 33
 
 	r.applyInput(Input{Action: "help", PlayerID: "helper", TargetID: "target"})
@@ -343,7 +339,7 @@ func TestRoom_ApplyHelp_enemyCannotBeHelped(t *testing.T) {
 	r.Join(target)
 
 	helper.Team = "red"
-	target.Team = "blue" // different team — enemy
+	target.Team = "blue"
 	helper.GX, helper.GY = 5, 5
 	target.GX, target.GY = 6, 5
 	target.Health = 33
