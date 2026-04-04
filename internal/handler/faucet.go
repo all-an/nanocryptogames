@@ -19,7 +19,7 @@ import (
 	"unicode"
 
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
-	"github.com/allanabrahao/nanomultiplayer/internal/games"
+	"github.com/allanabrahao/nanomultiplayer/internal/games/shooter"
 	"github.com/allanabrahao/nanomultiplayer/internal/nano"
 	"github.com/gorilla/websocket"
 )
@@ -305,14 +305,14 @@ func (h *FaucetGamePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 // FaucetWSHandler upgrades HTTP connections to WebSocket for faucet game sessions.
 // All Nano reward sends go through the shared FaucetSender (serialised + PoW-cached).
 type FaucetWSHandler struct {
-	hub      *games.Hub
+	hub      *shooter.Hub
 	db       *db.DB
 	sender   *FaucetSender
 	testMode bool // when true, bypass anti-abuse checks (FAUCET_TEST_MODE=true)
 }
 
 // NewFaucetWSHandler wires up all faucet WebSocket dependencies.
-func NewFaucetWSHandler(hub *games.Hub, database *db.DB, sender *FaucetSender) *FaucetWSHandler {
+func NewFaucetWSHandler(hub *shooter.Hub, database *db.DB, sender *FaucetSender) *FaucetWSHandler {
 	return &FaucetWSHandler{
 		hub:      hub,
 		db:       database,
@@ -333,7 +333,7 @@ func (h *FaucetWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p := games.NewPlayer(newID(), roomID)
+	p := shooter.NewPlayer(newID(), roomID)
 
 	// Team — default to "red".
 	team := r.URL.Query().Get("team")
@@ -410,7 +410,7 @@ func (h *FaucetWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *FaucetWSHandler) walletAddr() string { return h.sender.WalletAddr() }
 
 // payoutLoop reads reward signals from the room and sends on-chain payments sequentially.
-func (h *FaucetWSHandler) payoutLoop(ctx context.Context, p *games.Player) {
+func (h *FaucetWSHandler) payoutLoop(ctx context.Context, p *shooter.Player) {
 	for {
 		select {
 		case reason, ok := <-p.FaucetRewardCh:
@@ -440,7 +440,7 @@ func (h *FaucetWSHandler) payoutLoop(ctx context.Context, p *games.Player) {
 }
 
 // sendReward executes a single faucet payout: daily-limit check → nano.Send → notify player.
-func (h *FaucetWSHandler) sendReward(ctx context.Context, p *games.Player, reason string) {
+func (h *FaucetWSHandler) sendReward(ctx context.Context, p *shooter.Player, reason string) {
 	if !h.sender.IsConfigured() {
 		return
 	}
@@ -486,7 +486,7 @@ func (h *FaucetWSHandler) sendReward(ctx context.Context, p *games.Player, reaso
 		"type":   "faucet_reward",
 		"reason": reason,
 		"xno":    "0.000010",
-		"earned": games.FormatXNO(p.FaucetEarned),
+		"earned": shooter.FormatXNO(p.FaucetEarned),
 	})
 	p.Send(b)
 
@@ -501,7 +501,7 @@ func (h *FaucetWSHandler) sendReward(ctx context.Context, p *games.Player, reaso
 }
 
 // faucetReadPump reads WebSocket messages and dispatches game actions.
-func (h *FaucetWSHandler) faucetReadPump(conn *websocket.Conn, p *games.Player, room *games.Room) {
+func (h *FaucetWSHandler) faucetReadPump(conn *websocket.Conn, p *shooter.Player, room *shooter.Room) {
 	defer conn.Close()
 
 	for {
@@ -522,7 +522,7 @@ func (h *FaucetWSHandler) faucetReadPump(conn *websocket.Conn, p *games.Player, 
 
 		switch raw.Action {
 		case "move", "shoot", "help", "reload":
-			room.Submit(games.Input{
+			room.Submit(shooter.Input{
 				PlayerID: p.ID,
 				Action:   raw.Action,
 				GX:       raw.GX,

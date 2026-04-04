@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
-	"github.com/allanabrahao/nanomultiplayer/internal/games"
+	"github.com/allanabrahao/nanomultiplayer/internal/games/shooter"
 	"github.com/allanabrahao/nanomultiplayer/internal/handler"
 	"github.com/allanabrahao/nanomultiplayer/internal/nano"
 	"github.com/joho/godotenv"
@@ -112,11 +112,11 @@ func main() {
 
 	// ── Templates ────────────────────────────────────────────────────────────
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
-	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_game/*.html"))
+	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_shooter/*.html"))
 	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_multiplayer_rpg_templates/*.html"))
 
 	// ── Faucet hub + wallet ───────────────────────────────────────────────────
-	faucetHub := games.NewFaucetHub()
+	faucetHub := shooter.NewFaucetHub()
 	if database != nil && database.FaucetDisableSameIPCheck(ctx) {
 		faucetHub.DisableSameIPCheck = true
 		log.Println("faucet: same-IP check disabled (faucet_disable_same_ip_check=true)")
@@ -171,6 +171,7 @@ func main() {
 	mux.Handle("GET /rpg/ws", rpgHandler.WebSocket())
 	mux.Handle("GET /rpg/api/balance", rpgHandler.Balance())
 	mux.Handle("POST /rpg/withdraw", rpgHandler.Withdraw())
+	mux.Handle("POST /rpg/account", rpgHandler.UpdateAccount())
 
 	rpcTestHandler := handler.NewRPCTestHandler(tmpl, database, rpcClient, masterSeed)
 	mux.Handle("GET /rpc-test", rpcTestHandler)

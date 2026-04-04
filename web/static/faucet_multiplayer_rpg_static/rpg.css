@@ -205,14 +205,175 @@
   overflow: hidden;
 }
 
+/* ── DM panel (left) ────────────────────────────────────────────────────── */
+
+/* The DM panel mirrors the chat panel width, naturally centering the canvas. */
+.rpg-dm-side {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #2a2a5a;
+  background: #0e0e24;
+  padding: 12px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.rpg-dm-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid #2a2a5a;
+  padding-bottom: 8px;
+}
+
+.rpg-dm-header h3 {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #606090;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rpg-dm-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.rpg-dm-empty {
+  font-size: 0.8rem;
+  color: #404060;
+  text-align: center;
+  font-style: italic;
+  margin: auto 0;
+}
+
+/* Received DM card */
+.rpg-dm-card {
+  background: #12122a;
+  border: 1px solid #2a2a5a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.rpg-dm-card:hover {
+  border-color: #4a4a90;
+  background: #16163a;
+}
+
+/* Sent DM card — subtly different tint */
+.rpg-dm-card--sent {
+  border-color: #1a3050;
+  background: #0d1520;
+}
+
+.rpg-dm-card--sent:hover {
+  border-color: #2a5080;
+  background: #111c2a;
+}
+
+.rpg-dm-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  gap: 6px;
+}
+
+.rpg-dm-card-from {
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rpg-dm-card-time {
+  font-size: 0.7rem;
+  color: #404060;
+  flex-shrink: 0;
+}
+
+.rpg-dm-card-text {
+  font-size: 0.82rem;
+  color: #b0b0d0;
+  word-break: break-word;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rpg-dm-card-dir {
+  font-size: 0.7rem;
+  color: #404060;
+  margin-top: 4px;
+}
+
+/* ── DM compose modal ───────────────────────────────────────────────────── */
+
+.rpg-account-label {
+  display: block;
+  font-size: 0.82rem;
+  color: #9090c0;
+  margin-bottom: 6px;
+}
+
+.rpg-color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rpg-color-picker {
+  width: 48px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid #2a2a5a;
+  border-radius: 6px;
+  background: #0d0d22;
+  cursor: pointer;
+}
+
+.rpg-color-preview {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #2a2a5a;
+  flex-shrink: 0;
+}
+
+.rpg-dm-textarea {
+  resize: vertical;
+  min-height: 80px;
+  margin-bottom: 8px;
+  font-family: inherit;
+  display: block;
+}
+
+.rpg-dm-modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
 .rpg-canvas-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   flex: 1;
-  padding: 16px;
+  padding: 12px;
   gap: 8px;
+  overflow: hidden;
 }
 
 #rpg-canvas {
@@ -221,6 +382,8 @@
   display: block;
   cursor: pointer;
   max-width: 100%;
+  max-height: 100%;
+  margin: auto;
 }
 
 .rpg-controls-hint {
@@ -235,6 +398,47 @@
   border-radius: 3px;
   padding: 1px 5px;
   font-size: 0.75em;
+}
+
+.rpg-cell-modal {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+}
+
+.rpg-cell-modal.hidden {
+  display: none;
+}
+
+.rpg-cell-modal-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #12122a;
+  border: 1px solid #4a4a90;
+  border-radius: 8px;
+  padding: 10px 16px;
+  color: #a0c4ff;
+  font-family: monospace;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+
+.rpg-cell-modal-close {
+  background: none;
+  border: none;
+  color: #606090;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  line-height: 1;
+}
+
+.rpg-cell-modal-close:hover {
+  color: #a0c4ff;
 }
 
 /* ── Side panel ─────────────────────────────────────────────────────────── */
@@ -279,17 +483,23 @@
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .rpg-chat-form input {
   flex: 1;
-  padding: 6px 10px;
+  min-width: 0;
+  padding: 6px 8px;
   background: #0d0d22;
   border: 1px solid #2a2a5a;
   border-radius: 5px;
   color: #e0e0f0;
   font-size: 0.82rem;
   outline: none;
+}
+
+.rpg-chat-form .rpg-btn {
+  flex-shrink: 0;
 }
 
 .rpg-chat-form input:focus {
@@ -333,6 +543,18 @@
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.rpg-online-item--clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background 0.15s;
+}
+
+.rpg-online-item--clickable:hover {
+  background: #1a1a3a;
 }
 
 /* ── Modal ──────────────────────────────────────────────────────────────── */

@@ -12,13 +12,14 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
 
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
-	"github.com/allanabrahao/nanomultiplayer/internal/games"
+	"github.com/allanabrahao/nanomultiplayer/internal/games/shooter"
 	rpggame "github.com/allanabrahao/nanomultiplayer/internal/games/rpg"
 	"github.com/allanabrahao/nanomultiplayer/internal/nano"
 	"github.com/gorilla/websocket"
@@ -31,7 +32,7 @@ const (
 	rpgMinUsername  = 3
 	rpgMaxUsername  = 20
 	rpgMinPassword  = 6
-	rpgDefaultRoom  = "world-1"
+	rpgDefaultRoom  = "0,0"
 )
 
 // ── in-memory fallback stores (used when DATABASE_URL is not set) ─────────────
@@ -40,6 +41,8 @@ type rpgMemAccount struct {
 	ID           string
 	Username     string
 	PasswordHash string
+	Email        *string
+	Color        string
 	SeedIndex    int
 	NanoAddress  string
 }
@@ -58,11 +61,11 @@ func newRPGMemAccounts() *rpgMemAccounts {
 	}
 }
 
-func (m *rpgMemAccounts) create(username, passwordHash, nanoAddress string, seedIndex int) *rpgMemAccount {
+func (m *rpgMemAccounts) create(username, passwordHash, nanoAddress string, email *string, seedIndex int) *rpgMemAccount {
 	id := newID()
 	acc := &rpgMemAccount{
 		ID: id, Username: username,
-		PasswordHash: passwordHash, SeedIndex: seedIndex, NanoAddress: nanoAddress,
+		PasswordHash: passwordHash, Email: email, Color: "", SeedIndex: seedIndex, NanoAddress: nanoAddress,
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -85,6 +88,23 @@ func (m *rpgMemAccounts) getByID(id string) (*rpgMemAccount, bool) {
 	return acc, ok
 }
 
+func (m *rpgMemAccounts) updateAccount(id, username string, email *string, color string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	acc, ok := m.byID[id]
+	if !ok {
+		return
+	}
+	// Keep byName consistent when the username changes.
+	if acc.Username != username {
+		delete(m.byName, acc.Username)
+		m.byName[username] = acc
+		acc.Username = username
+	}
+	acc.Email = email
+	acc.Color = color
+}
+
 func (m *rpgMemAccounts) nextIndex() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -97,6 +117,8 @@ type rpgSessionData struct {
 	AccountID   string
 	Username    string
 	NanoAddress string
+	Email       string // empty when not set
+	Color       string // empty means use palette
 	SeedIndex   int
 }
 
@@ -175,10 +197,14 @@ func (h *RPGHandler) session(r *http.Request) *rpgSessionData {
 		if err != nil {
 			return nil
 		}
-		return &rpgSessionData{
+		sess := &rpgSessionData{
 			AccountID: acc.ID, Username: acc.Username,
-			NanoAddress: acc.NanoAddress, SeedIndex: acc.SeedIndex,
+			NanoAddress: acc.NanoAddress, Color: acc.Color, SeedIndex: acc.SeedIndex,
 		}
+		if acc.Email != nil {
+			sess.Email = *acc.Email
+		}
+		return sess
 	}
 
 	d, ok := h.memSess.get(token)
@@ -261,6 +287,17 @@ func (h *RPGHandler) Register() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username := strings.TrimSpace(r.FormValue("username"))
 		password := r.FormValue("password")
+		emailRaw := strings.TrimSpace(r.FormValue("email"))
+
+		// Normalise email: store NULL when blank, reject obviously invalid values.
+		var email *string
+		if emailRaw != "" {
+			if !strings.Contains(emailRaw, "@") {
+				http.Redirect(w, r, "/rpg?error=Invalid+email+address", http.StatusSeeOther)
+				return
+			}
+			email = &emailRaw
+		}
 
 		if msg := validateUsername(username); msg != "" {
 			http.Redirect(w, r, "/rpg?error="+urlEncode(msg), http.StatusSeeOther)
@@ -295,10 +332,10 @@ func (h *RPGHandler) Register() http.HandlerFunc {
 
 		var accountID string
 		if h.db != nil {
-			acc, err := h.db.CreateRPGAccount(ctx, username, string(hash), idx, wallet.Address)
+			acc, err := h.db.CreateRPGAccount(ctx, username, string(hash), email, idx, wallet.Address)
 			if err != nil {
 				log.Printf("rpg register: create account: %v", err)
-				http.Redirect(w, r, "/rpg?error=Username+already+taken", http.StatusSeeOther)
+				http.Redirect(w, r, "/rpg?error=Username+or+email+already+taken", http.StatusSeeOther)
 				return
 			}
 			accountID = acc.ID
@@ -307,7 +344,7 @@ func (h *RPGHandler) Register() http.HandlerFunc {
 				http.Redirect(w, r, "/rpg?error=Username+already+taken", http.StatusSeeOther)
 				return
 			}
-			acc := h.memAccts.create(username, string(hash), wallet.Address, idx)
+			acc := h.memAccts.create(username, string(hash), wallet.Address, email, idx)
 			accountID = acc.ID
 		}
 
@@ -321,7 +358,7 @@ func (h *RPGHandler) Register() http.HandlerFunc {
 		} else {
 			h.memSess.set(token, &rpgSessionData{
 				AccountID: accountID, Username: username,
-				NanoAddress: wallet.Address, SeedIndex: idx,
+				NanoAddress: wallet.Address, Color: "", SeedIndex: idx,
 			})
 		}
 
@@ -337,7 +374,7 @@ func (h *RPGHandler) Login() http.HandlerFunc {
 		password := r.FormValue("password")
 		ctx := r.Context()
 
-		var accountID, nanoAddress, passwordHash string
+		var accountID, nanoAddress, passwordHash, color string
 		var seedIndex int
 
 		if h.db != nil {
@@ -347,7 +384,7 @@ func (h *RPGHandler) Login() http.HandlerFunc {
 				return
 			}
 			accountID, passwordHash = acc.ID, acc.PasswordHash
-			nanoAddress, seedIndex = acc.NanoAddress, acc.SeedIndex
+			nanoAddress, seedIndex, color = acc.NanoAddress, acc.SeedIndex, acc.Color
 		} else {
 			acc, ok := h.memAccts.getByName(username)
 			if !ok {
@@ -355,7 +392,7 @@ func (h *RPGHandler) Login() http.HandlerFunc {
 				return
 			}
 			accountID, passwordHash = acc.ID, acc.PasswordHash
-			nanoAddress, seedIndex = acc.NanoAddress, acc.SeedIndex
+			nanoAddress, seedIndex, color = acc.NanoAddress, acc.SeedIndex, acc.Color
 		}
 
 		if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
@@ -371,7 +408,7 @@ func (h *RPGHandler) Login() http.HandlerFunc {
 		} else {
 			h.memSess.set(token, &rpgSessionData{
 				AccountID: accountID, Username: username,
-				NanoAddress: nanoAddress, SeedIndex: seedIndex,
+				NanoAddress: nanoAddress, Color: color, SeedIndex: seedIndex,
 			})
 		}
 
@@ -410,10 +447,15 @@ func (h *RPGHandler) GamePage() http.HandlerFunc {
 		if room == "" {
 			room = rpgDefaultRoom
 		}
+		ex, ey := parseEntryCoords(r)
 		h.tmpl.ExecuteTemplate(w, "rpg_game.html", map[string]any{
 			"Username":    sess.Username,
 			"NanoAddress": sess.NanoAddress,
+			"Email":       sess.Email,
+			"Color":       sess.Color,
 			"Room":        room,
+			"EntryX":      ex,
+			"EntryY":      ey,
 		})
 	}
 }
@@ -437,8 +479,9 @@ func (h *RPGHandler) WebSocket() http.HandlerFunc {
 			room = rpgDefaultRoom
 		}
 
-		p := rpggame.NewPlayer(newID(), sess.AccountID, sess.Username, sess.NanoAddress, room, sess.SeedIndex)
-		joinedRoom := h.hub.JoinRoom(room, p)
+		p := rpggame.NewPlayer(newID(), sess.AccountID, sess.Username, sess.NanoAddress, room, sess.Color, sess.SeedIndex)
+		ex, ey := parseEntryCoords(r)
+		joinedRoom := h.hub.JoinRoom(room, p, ex, ey)
 
 		initMsg, _ := json.Marshal(map[string]any{
 			"type":        "init",
@@ -449,6 +492,8 @@ func (h *RPGHandler) WebSocket() http.HandlerFunc {
 			"room":        room,
 			"gridW":       rpggame.GridW,
 			"gridH":       rpggame.GridH,
+			"blocks":      joinedRoom.Blocks(),
+			"doors":       joinedRoom.Doors(),
 		})
 		p.Send(initMsg)
 
@@ -492,7 +537,7 @@ func (h *RPGHandler) Balance() http.HandlerFunc {
 			raw = new(big.Int)
 		}
 		json.NewEncoder(w).Encode(map[string]string{
-			"xno": games.FormatXNO(raw),
+			"xno": shooter.FormatXNO(raw),
 			"raw": bal.Balance,
 		})
 	}
@@ -564,7 +609,66 @@ func (h *RPGHandler) Withdraw() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"hash": hash,
-			"xno":  games.FormatXNO(raw),
+			"xno":  shooter.FormatXNO(raw),
+		})
+	}
+}
+
+// UpdateAccount handles POST /rpg/account — updates the player's email address.
+func (h *RPGHandler) UpdateAccount() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sess := h.session(r)
+		if sess == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		var req struct {
+			Username string `json:"username"`
+			Email    string `json:"email"`
+			Color    string `json:"color"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		newUsername := strings.TrimSpace(req.Username)
+		if msg := validateUsername(newUsername); msg != "" {
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+
+		emailRaw := strings.TrimSpace(req.Email)
+		if emailRaw == "" || !strings.Contains(emailRaw, "@") {
+			http.Error(w, "valid email is required", http.StatusBadRequest)
+			return
+		}
+
+		color := strings.TrimSpace(req.Color)
+		if !isValidHexColor(color) {
+			http.Error(w, "invalid color", http.StatusBadRequest)
+			return
+		}
+
+		email := &emailRaw
+		ctx := r.Context()
+
+		if h.db != nil {
+			if err := h.db.UpdateRPGAccount(ctx, sess.AccountID, newUsername, email, color); err != nil {
+				log.Printf("rpg update account [%s]: %v", sess.Username, err)
+				http.Error(w, "Username or email already taken", http.StatusConflict)
+				return
+			}
+		} else {
+			h.memAccts.updateAccount(sess.AccountID, newUsername, email, color)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"username": newUsername,
+			"email":    emailRaw,
+			"color":    color,
 		})
 	}
 }
@@ -594,24 +698,56 @@ func rpgReadPump(conn *websocket.Conn, p *rpggame.Player, room *rpggame.Room) {
 			X      int    `json:"x"`
 			Y      int    `json:"y"`
 			Text   string `json:"text"`
+			To     string `json:"to"`
 		}
 		if json.Unmarshal(msg, &raw) != nil {
 			continue
 		}
 		switch raw.Action {
-		case "move", "chat":
+		case "move", "chat", "dm", "color", "username":
 			room.Submit(rpggame.Input{
 				PlayerID: p.ID,
 				Action:   raw.Action,
 				X:        raw.X,
 				Y:        raw.Y,
 				Text:     raw.Text,
+				To:       raw.To,
 			})
 		}
 	}
 }
 
+// parseEntryCoords reads optional ?ex=&ey= query params for room-transition spawn.
+// Returns (-1, -1) when absent or invalid, signalling random spawn.
+func parseEntryCoords(r *http.Request) (int, int) {
+	ex, ey := -1, -1
+	if v := r.URL.Query().Get("ex"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			ex = n
+		}
+	}
+	if v := r.URL.Query().Get("ey"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			ey = n
+		}
+	}
+	return ex, ey
+}
+
 // urlEncode replaces spaces with + for use in redirect query strings.
 func urlEncode(s string) string {
 	return strings.ReplaceAll(s, " ", "+")
+}
+
+// isValidHexColor reports whether s is a valid 6-digit CSS hex color (#RRGGBB).
+func isValidHexColor(s string) bool {
+	if len(s) != 7 || s[0] != '#' {
+		return false
+	}
+	for _, c := range s[1:] {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
 }

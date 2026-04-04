@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Faucet Shooter Multiplayer — Lobby</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <a href="/" class="back-btn">← Back</a>
+  <div class="lobby">
+    <h1>🚰 Faucet Shooter Multiplayer</h1>
+    <p class="subtitle">Join a room and earn free Nano for kills &amp; heals</p>
+
+    <form class="lobby-form" id="create-form">
+      <input
+        type="text"
+        name="room"
+        id="room-input"
+        placeholder="Room name"
+        autocomplete="off"
+        required
+      >
+      <button type="submit">Create / Join</button>
+    </form>
+
+    <div class="room-list-wrap">
+      <h2 class="room-list-title">Active Rooms</h2>
+      <ul class="room-list" id="room-list">
+        <li class="room-list-empty">No rooms open yet — create one above</li>
+      </ul>
+      <div class="room-list-bots">
+        <button class="btn-play-bots" onclick="showBotsPicker()">🤖 Play with Bots</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bots picker modal -->
+  <div id="bots-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <p class="modal-title">🤖 Play with Bots</p>
+      <p class="modal-sub">Practice mode — 3 bots vs you. Kills earn faucet rewards if you provide a Nano address.</p>
+      <input
+        type="text"
+        id="bots-address-input"
+        class="nick-input"
+        placeholder="Your Nano address (optional, for rewards)"
+        autocomplete="off"
+        style="margin-top:10px;"
+      >
+      <div class="team-buttons" style="margin-top:12px;">
+        <button id="bots-play-btn" class="btn-team btn-team-red" style="flex:1;">Play</button>
+        <button id="bots-cancel-btn" class="btn-secondary" style="flex:1;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Team picker modal — includes nano address input for receiving rewards -->
+  <div id="team-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <p class="modal-title">Join Room</p>
+      <p class="modal-sub" id="team-room-name"></p>
+      <input
+        type="text"
+        id="nick-input"
+        class="nick-input"
+        placeholder="Your nickname (required)"
+        maxlength="12"
+        autocomplete="off"
+        required
+      >
+      <input
+        type="text"
+        id="address-input"
+        class="nick-input"
+        placeholder="Your Nano address (for rewards)"
+        autocomplete="off"
+        style="margin-top:6px;font-size:0.78rem;"
+      >
+      <p class="modal-sub" style="margin-top:4px;">Choose your team</p>
+      <div class="team-buttons">
+        <button id="team-red" class="btn-team btn-team-red">
+          <span class="team-btn-label">Red</span>
+          <span id="team-red-count" class="team-btn-count"></span>
+        </button>
+        <button id="team-blue" class="btn-team btn-team-blue">
+          <span class="team-btn-label">Blue</span>
+          <span id="team-blue-count" class="team-btn-count"></span>
+        </button>
+      </div>
+      <button id="team-cancel" class="btn-secondary" style="margin-top:8px;">Cancel</button>
+    </div>
+  </div>
+
+  <script>
+    let pendingRoom = null;
+
+    function showTeamPicker(roomID, redCount, blueCount, preselect) {
+      pendingRoom = roomID;
+      document.getElementById("team-room-name").textContent = roomID;
+      document.getElementById("team-red-count").textContent  = playerLabel(redCount);
+      document.getElementById("team-blue-count").textContent = playerLabel(blueCount);
+      // Highlight the pre-selected team button without navigating yet.
+      document.getElementById("team-red").classList.toggle("btn-team-selected", preselect === "red");
+      document.getElementById("team-blue").classList.toggle("btn-team-selected", preselect === "blue");
+      document.getElementById("team-modal").classList.remove("hidden");
+      // Focus the nickname field so the player can type before confirming.
+      document.getElementById("nick-input").focus();
+    }
+
+    function playerLabel(n) {
+      if (n === 0) return "empty";
+      return n === 1 ? "1 player" : `${n} players`;
+    }
+
+    function hideTeamPicker() {
+      pendingRoom = null;
+      document.getElementById("nick-input").value = "";
+      document.getElementById("address-input").value = "";
+      document.getElementById("team-modal").classList.add("hidden");
+    }
+
+    function joinWithTeam(team) {
+      if (!pendingRoom) return;
+      const nick    = document.getElementById("nick-input").value.trim().slice(0, 12);
+      if (!nick) { document.getElementById("nick-input").focus(); return; }
+      const address = document.getElementById("address-input").value.trim();
+      const params  = new URLSearchParams({ team });
+      params.set("nick", nick);
+      if (address) params.set("address", address);
+      window.location.href = `/faucet/game/${encodeURIComponent(pendingRoom)}?${params}`;
+    }
+
+    document.getElementById("team-red").addEventListener("click",  () => joinWithTeam("red"));
+    document.getElementById("team-blue").addEventListener("click", () => joinWithTeam("blue"));
+    document.getElementById("team-cancel").addEventListener("click", hideTeamPicker);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTeamPicker(); });
+
+    document.getElementById("create-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const roomName = document.getElementById("room-input").value.trim();
+      if (!roomName) return;
+      showTeamPicker(roomName, 0, 0);
+    });
+
+    // ── Room list ─────────────────────────────────────────────────────────────
+
+    async function loadRooms() {
+      try {
+        const res   = await fetch("/faucet/api/rooms");
+        const rooms = await res.json();
+        renderRooms(rooms);
+      } catch { /* ignore poll errors */ }
+    }
+
+    function renderRooms(rooms) {
+      const list = document.getElementById("room-list");
+      if (!rooms || rooms.length === 0) {
+        list.innerHTML = `<li class="room-list-empty">No rooms open yet — create one above</li>`;
+        return;
+      }
+      list.innerHTML = rooms.map(r => `
+        <li class="room-item">
+          <span class="room-name">${escapeHtml(r.id)}</span>
+          <span class="room-team-counts">
+            <span class="team-dot red-dot"></span>${r.redCount}
+            &nbsp;
+            <span class="team-dot blue-dot"></span>${r.blueCount}
+          </span>
+          <div class="room-join-group">
+            <button class="room-join-btn btn-team-red-sm"
+              onclick="showTeamPicker('${escapeJs(r.id)}', ${r.redCount}, ${r.blueCount}, 'red')">
+              Join Red
+            </button>
+            <button class="room-join-btn btn-team-blue-sm"
+              onclick="showTeamPicker('${escapeJs(r.id)}', ${r.redCount}, ${r.blueCount}, 'blue')">
+              Join Blue
+            </button>
+          </div>
+        </li>
+      `).join("");
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    }
+
+    function escapeJs(str) {
+      return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    }
+
+    function showBotsPicker() {
+      document.getElementById("bots-modal").classList.remove("hidden");
+      document.getElementById("bots-address-input").focus();
+    }
+
+    function hideBotsPicker() {
+      document.getElementById("bots-modal").classList.add("hidden");
+    }
+
+    function launchBots() {
+      const address = document.getElementById("bots-address-input").value.trim();
+      const params  = new URLSearchParams();
+      if (address) params.set("address", address);
+      window.location.href = `/faucet/bots${params.toString() ? "?" + params : ""}`;
+    }
+
+    document.getElementById("bots-play-btn").addEventListener("click", launchBots);
+    document.getElementById("bots-cancel-btn").addEventListener("click", hideBotsPicker);
+    document.getElementById("bots-address-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") launchBots();
+    });
+
+    loadRooms();
+    setInterval(loadRooms, 3000);
+  </script>
+</body>
+</html>

@@ -32,7 +32,7 @@
 
 ## Skills
 
-Custom AI persona prompts live in `skills/<name>/SKILL.md`:
+Custom AI persona prompts live in `.claude/skills/<name>/SKILL.md`:
 
 - `/storyteller` — expert narrative craft, world-building, RPG dialogue
 - `/gamedev` — expert game developer (math, physics, multiplayer, RPG systems)

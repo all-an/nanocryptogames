@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"net/http"
 
-	"github.com/allanabrahao/nanomultiplayer/internal/games"
+	"github.com/allanabrahao/nanomultiplayer/internal/games/shooter"
 	"github.com/gorilla/websocket"
 )
 
@@ -17,7 +17,7 @@ var upgrader = websocket.Upgrader{
 
 // writePump reads from the player's message channel and writes to the WebSocket.
 // Exits when the channel is closed (player removed from room).
-func writePump(conn *websocket.Conn, p *games.Player) {
+func writePump(conn *websocket.Conn, p *shooter.Player) {
 	defer conn.Close()
 
 	for msg := range p.Messages() {

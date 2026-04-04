@@ -21,13 +21,15 @@ type Player struct {
 }
 
 // NewPlayer creates a player with a buffered outbound message channel.
-// Color and position are assigned by the room when the player joins.
-func NewPlayer(id, accountID, username, nanoAddress, roomID string, seedIndex int) *Player {
+// Provide a non-empty color to use the player's saved preference; pass "" to
+// let the room assign one from the palette on join.
+func NewPlayer(id, accountID, username, nanoAddress, roomID, color string, seedIndex int) *Player {
 	return &Player{
 		ID:          id,
 		AccountID:   accountID,
 		Username:    username,
 		NanoAddress: nanoAddress,
+		Color:       color,
 		SeedIndex:   seedIndex,
 		RoomID:      roomID,
 		send:        make(chan []byte, 64),

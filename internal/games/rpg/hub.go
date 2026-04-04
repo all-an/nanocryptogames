@@ -15,8 +15,9 @@ func NewHub() *Hub {
 }
 
 // JoinRoom adds a player to the named room, creating it on first use.
+// entryX/entryY specify the desired spawn cell; pass negative values for random spawn.
 // Returns the room that was joined so the caller can submit inputs.
-func (h *Hub) JoinRoom(roomID string, p *Player) *Room {
+func (h *Hub) JoinRoom(roomID string, p *Player, entryX, entryY int) *Room {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	room, ok := h.rooms[roomID]
@@ -24,7 +25,7 @@ func (h *Hub) JoinRoom(roomID string, p *Player) *Room {
 		room = newRoom(roomID)
 		h.rooms[roomID] = room
 	}
-	room.AddPlayer(p)
+	room.AddPlayer(p, entryX, entryY)
 	return room
 }
 

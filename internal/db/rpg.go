@@ -13,21 +13,23 @@ type RPGAccount struct {
 	ID           string
 	Username     string
 	PasswordHash string
+	Email        *string // optional; nil when not provided
+	Color        string  // CSS hex color chosen by the player; empty means use palette
 	SeedIndex    int
 	NanoAddress  string
 	CreatedAt    time.Time
 }
 
 // CreateRPGAccount inserts a new RPG player account and returns the created row.
-// Returns an error (typically a unique constraint violation) if the username is taken.
-func (db *DB) CreateRPGAccount(ctx context.Context, username, passwordHash string, seedIndex int, nanoAddress string) (*RPGAccount, error) {
+// email may be nil to store NULL. Returns an error if the username or email is taken.
+func (db *DB) CreateRPGAccount(ctx context.Context, username, passwordHash string, email *string, seedIndex int, nanoAddress string) (*RPGAccount, error) {
 	a := &RPGAccount{}
 	err := db.pool.QueryRow(ctx,
-		`INSERT INTO rpg_accounts (username, password_hash, seed_index, nano_address)
-		 VALUES ($1, $2, $3, $4)
-		 RETURNING id, username, password_hash, seed_index, nano_address, created_at`,
-		username, passwordHash, seedIndex, nanoAddress,
-	).Scan(&a.ID, &a.Username, &a.PasswordHash, &a.SeedIndex, &a.NanoAddress, &a.CreatedAt)
+		`INSERT INTO rpg_accounts (username, password_hash, email, seed_index, nano_address)
+		 VALUES ($1, $2, $3, $4, $5)
+		 RETURNING id, username, password_hash, email, color, seed_index, nano_address, created_at`,
+		username, passwordHash, email, seedIndex, nanoAddress,
+	).Scan(&a.ID, &a.Username, &a.PasswordHash, &a.Email, &a.Color, &a.SeedIndex, &a.NanoAddress, &a.CreatedAt)
 	return a, err
 }
 
@@ -36,10 +38,10 @@ func (db *DB) CreateRPGAccount(ctx context.Context, username, passwordHash strin
 func (db *DB) GetRPGAccountByUsername(ctx context.Context, username string) (*RPGAccount, error) {
 	a := &RPGAccount{}
 	err := db.pool.QueryRow(ctx,
-		`SELECT id, username, password_hash, seed_index, nano_address, created_at
+		`SELECT id, username, password_hash, email, color, seed_index, nano_address, created_at
 		 FROM rpg_accounts WHERE username = $1`,
 		username,
-	).Scan(&a.ID, &a.Username, &a.PasswordHash, &a.SeedIndex, &a.NanoAddress, &a.CreatedAt)
+	).Scan(&a.ID, &a.Username, &a.PasswordHash, &a.Email, &a.Color, &a.SeedIndex, &a.NanoAddress, &a.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -51,14 +53,25 @@ func (db *DB) GetRPGAccountByUsername(ctx context.Context, username string) (*RP
 func (db *DB) GetRPGAccountByID(ctx context.Context, id string) (*RPGAccount, error) {
 	a := &RPGAccount{}
 	err := db.pool.QueryRow(ctx,
-		`SELECT id, username, password_hash, seed_index, nano_address, created_at
+		`SELECT id, username, password_hash, email, color, seed_index, nano_address, created_at
 		 FROM rpg_accounts WHERE id = $1`,
 		id,
-	).Scan(&a.ID, &a.Username, &a.PasswordHash, &a.SeedIndex, &a.NanoAddress, &a.CreatedAt)
+	).Scan(&a.ID, &a.Username, &a.PasswordHash, &a.Email, &a.Color, &a.SeedIndex, &a.NanoAddress, &a.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return a, nil
+}
+
+// UpdateRPGAccount updates the username, email, and display color for an account.
+// email may be nil to store NULL. color should be a CSS hex string (e.g. "#4A90D9").
+// Returns an error on unique-constraint violation (duplicate username or email).
+func (db *DB) UpdateRPGAccount(ctx context.Context, accountID, username string, email *string, color string) error {
+	_, err := db.pool.Exec(ctx,
+		`UPDATE rpg_accounts SET username = $1, email = $2, color = $3 WHERE id = $4`,
+		username, email, color, accountID,
+	)
+	return err
 }
 
 // CreateRPGSession stores a new session token associated with an account.
