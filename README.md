@@ -1,6 +1,6 @@
 # Nano Crypto Games
 
-A collection of real-money browser games powered by Go and the Nano (XNO) cryptocurrency.
+A collection of real-money browser games powered by Go and Nano (XNO) cryptocurrency.
 
 ## Requirements
 

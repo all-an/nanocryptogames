@@ -151,6 +151,7 @@ func main() {
 		http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
 	mux.Handle("GET /", handler.NewLandingHandler(tmpl, database, faucetAddr))
+	mux.Handle("POST /wallet/create", handler.NewWalletHandler())
 	mux.Handle("GET /docs", handler.NewDocsHandler(tmpl))
 	mux.Handle("GET /docs/code-flow/shooter", handler.NewShooterCodeFlowHandler(tmpl))
 

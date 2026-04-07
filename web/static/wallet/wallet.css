@@ -1,0 +1,214 @@
+/* ── Wallet modal overlay ── */
+
+.wallet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: wallet-fade-in 0.2s ease;
+}
+
+@keyframes wallet-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Modal card ── */
+
+.wallet-modal {
+  background: linear-gradient(160deg, #13102a 0%, #0f0f1f 60%, #0c1220 100%);
+  border: 1.5px solid #6a3aaa;
+  border-radius: 14px;
+  padding: 36px 32px 28px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow:
+    0 0 0 1px #3a1a6a,
+    0 0 32px 8px rgba(120, 60, 200, 0.25),
+    0 8px 40px rgba(0, 0, 0, 0.6);
+  animation: wallet-slide-up 0.25s ease;
+  position: relative;
+}
+
+@keyframes wallet-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── Header ── */
+
+.wallet-modal-icon {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+}
+
+.wallet-modal-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #e0c8ff;
+  margin: 0 0 6px;
+}
+
+.wallet-modal-subtitle {
+  font-size: 0.88rem;
+  color: #7a6a99;
+  margin: 0 0 24px;
+}
+
+/* ── Warning banner ── */
+
+.wallet-modal-warning {
+  background: linear-gradient(135deg, #1c1100 0%, #2a1800 50%, #1c1100 100%);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #ffcc44;
+  line-height: 1.65;
+  margin-bottom: 20px;
+  position: relative;
+
+  /* Shiny animated border via outline + box-shadow layering */
+  outline: 2px solid #c87800;
+  outline-offset: -2px;
+  box-shadow:
+    0 0 0 1px #7a4400,
+    0 0 12px 3px rgba(220, 140, 0, 0.35),
+    0 0 28px 6px rgba(200, 100, 0, 0.18),
+    inset 0 1px 0 rgba(255, 220, 80, 0.12);
+  animation: warning-glow 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes warning-glow {
+  from {
+    box-shadow:
+      0 0 0 1px #7a4400,
+      0 0 10px 2px rgba(220, 140, 0, 0.28),
+      0 0 22px 4px rgba(200, 100, 0, 0.14),
+      inset 0 1px 0 rgba(255, 220, 80, 0.10);
+    outline-color: #c87800;
+  }
+  to {
+    box-shadow:
+      0 0 0 1px #aa6000,
+      0 0 20px 6px rgba(255, 180, 0, 0.55),
+      0 0 40px 12px rgba(220, 120, 0, 0.28),
+      inset 0 1px 0 rgba(255, 240, 100, 0.20);
+    outline-color: #ffaa00;
+  }
+}
+
+/* ── Seed section ── */
+
+.wallet-modal-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #6a5a88;
+  margin-bottom: 6px;
+}
+
+.wallet-seed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.wallet-seed-box {
+  flex: 1;
+  background: #0a0814;
+  border: 1px solid #3a2a5a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.78rem;
+  color: #c0a0f0;
+  word-break: break-all;
+  line-height: 1.6;
+  user-select: all;
+}
+
+/* ── Copy button ── */
+
+.wallet-copy-btn {
+  flex-shrink: 0;
+  background: #1e1438;
+  border: 1px solid #4a2a7a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: #a080d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.wallet-copy-btn:hover {
+  background: #2a1a4a;
+  border-color: #7a4aaa;
+  color: #d0a0ff;
+}
+
+.wallet-copy-btn.copied {
+  background: #0f2a1a;
+  border-color: #2a7a4a;
+  color: #52c07a;
+}
+
+.wallet-copy-btn svg {
+  display: block;
+}
+
+/* ── Address section ── */
+
+.wallet-address-box {
+  background: #0a0814;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.72rem;
+  color: #6a8aaa;
+  word-break: break-all;
+  user-select: all;
+  margin-bottom: 24px;
+}
+
+/* ── Close button ── */
+
+.wallet-modal-close {
+  width: 100%;
+  padding: 11px;
+  background: #2a1a4a;
+  border: 1px solid #4a2a7a;
+  border-radius: 8px;
+  color: #c0a0f0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.wallet-modal-close:hover {
+  background: #3a1a6a;
+}
+
+/* ── Mobile ── */
+
+@media (max-width: 540px) {
+  .wallet-modal {
+    padding: 28px 18px 22px;
+  }
+
+  .wallet-seed-box {
+    font-size: 0.72rem;
+  }
+}

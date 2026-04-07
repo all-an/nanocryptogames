@@ -19,6 +19,13 @@
 - No premature abstractions — solve the problem in front of you
 - Keep dependencies minimal
 
+## Separation of Concerns
+
+- Each directory owns one concern — game logic, HTTP handling, DB, templates, and static assets must never bleed into each other's directories
+- Behaviours (game rules, RPC calls, DB queries) live in `internal/`; presentation (HTML, CSS, JS) lives in `internal/templates/` and `web/static/`
+- Each game or feature gets its own subdirectory — do not mix concerns from different games in shared files unless it is genuinely shared logic
+- Pages and routes for a game belong to that game's handler and template directory, not a sibling game's
+
 ## Project Structure
 
 - `internal/games/` — shared faucet game logic (package `games`)

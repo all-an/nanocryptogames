@@ -1337,9 +1337,9 @@ canvas {
 .welcome-cards {
   display: flex;
   gap: 24px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
-  max-width: 960px;
+  max-width: 1280px;
   width: 100%;
 }
 
@@ -1348,9 +1348,8 @@ canvas {
   border: 1px solid #2a2a4a;
   border-radius: 10px;
   padding: 28px 24px;
-  flex: 1;
-  min-width: 240px;
-  max-width: 300px;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1498,4 +1497,61 @@ canvas {
 .btn-team-selected {
   outline: 2px solid #fff;
   outline-offset: 2px;
+}
+
+/* ── Landing page nav bar ── */
+
+.landing-nav {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  z-index: 100;
+  display: flex;
+  gap: 8px;
+}
+
+.landing-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  border-radius: 6px;
+  background: #1a1228;
+  border: 1px solid #3a2a5a;
+  color: #c0a0f0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ── Landing page mobile ── */
+
+@media (max-width: 800px) {
+  .welcome {
+    padding: 80px 12px 32px;
+    gap: 32px;
+  }
+
+  .welcome-title {
+    font-size: 2rem;
+  }
+
+  .welcome-tagline {
+    font-size: 0.95rem;
+  }
+
+  .welcome-tip {
+    font-size: 0.85rem;
+    padding: 10px 14px;
+  }
+
+  .welcome-cards {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .welcome-card {
+    padding: 20px 16px;
+  }
 }
