@@ -72,12 +72,16 @@ NANO_MASTER_SEED=a3f8...64hexchars...
 
 ## Environment Variables
 
-| Variable                | Description                          | Example                          |
-|-------------------------|--------------------------------------|----------------------------------|
-| `DATABASE_URL`          | Postgres connection string           | see above                        |
-| `NANO_RPC_PRIMARY_URL`  | Primary public Nano node             | https://nanoslo.0x.no            |
-| `NANO_RPC_FALLBACK_URL` | Fallback public Nano node            | https://node.somenano.com        |
-| `NANO_MASTER_SEED`      | HD wallet master seed (keep secret)  | —                                |
+| Variable                | Description                          | Example / Default                                                        |
+|-------------------------|--------------------------------------|--------------------------------------------------------------------------|
+| `DATABASE_URL`          | Postgres connection string           | `postgres://nano:nano@localhost:5432/nano_crypto_games_local_db?sslmode=disable` |
+| `DONATION_ADDRESS`      | Nano address to receive donations    | —                                                                        |
+| `FAUCET_SEED`           | Seed for the faucet wallet           | —                                                                        |
+| `FAUCET_TEST_MODE`      | Disable real payouts for testing     | `false`                                                                  |
+| `NANO_MASTER_SEED`      | HD wallet master seed (keep secret)  | —                                                                        |
+| `NANO_RPC_API_KEY`      | API key for the primary Nano node    | —                                                                        |
+| `NANO_RPC_FALLBACK_URL` | Fallback public Nano node            | `https://us-1.nano.to`                                                   |
+| `NANO_RPC_PRIMARY_URL`  | Primary public Nano node             | `https://rpc.nano.to`                                                    |
 
 ## Project Layout
 
