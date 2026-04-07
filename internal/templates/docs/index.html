@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nano Crypto Games — Docs</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/docs/docs.css" />
+</head>
+<body>
+
+  <a href="/" class="back-btn">&#8592; Home</a>
+
+  <div class="docs-layout">
+
+    <!-- ── Sidebar ── -->
+    <aside class="docs-sidebar">
+      <a href="/docs" class="logo">Ӿ Nano Crypto Games</a>
+      <nav class="docs-nav">
+
+        <h3>Getting Started</h3>
+        <ul class="cat-start">
+          <li><a href="#overview"><span class="nav-dot"></span>Overview</a></li>
+          <li><a href="#requirements"><span class="nav-dot"></span>Requirements</a></li>
+          <li><a href="#local-dev"><span class="nav-dot"></span>Local Development</a></li>
+        </ul>
+
+        <h3>Configuration</h3>
+        <ul class="cat-config">
+          <li><a href="#env-vars"><span class="nav-dot"></span>Environment Variables</a></li>
+          <li><a href="#master-seed"><span class="nav-dot"></span>Master Seed</a></li>
+        </ul>
+
+        <h3>Games</h3>
+        <ul class="cat-games">
+          <li><a href="#games"><span class="nav-dot"></span>Faucet Shooter</a></li>
+          <li><a href="#games"><span class="nav-dot"></span>Nano Faucet RPG</a></li>
+        </ul>
+
+        <h3>Code Flows</h3>
+        <ul class="cat-flow">
+          <li><a href="/docs/code-flow/shooter"><span class="nav-dot"></span>Shooter Flow</a></li>
+        </ul>
+
+      </nav>
+    </aside>
+
+    <!-- ── Main ── -->
+    <main class="docs-main">
+
+      <!-- Hero -->
+      <div class="docs-hero" id="overview">
+        <h1>Nano Crypto Games</h1>
+        <p>Real-money browser games powered by Go and the Nano (XNO) cryptocurrency — feeless, instant, and built for microtransactions.</p>
+        <div class="docs-hero-badges">
+          <span class="hero-badge go">Go 1.25+</span>
+          <span class="hero-badge nano">Ӿ Nano (XNO)</span>
+          <span class="hero-badge pg">PostgreSQL 16</span>
+        </div>
+      </div>
+
+      <!-- Requirements -->
+      <section class="docs-section" id="requirements">
+        <span class="section-label label-start">Getting Started</span>
+        <h2>Requirements</h2>
+        <ul>
+          <li><strong>Go 1.25+</strong> — the server and all tooling are written in Go</li>
+          <li><strong>Docker</strong> — used to run a local Postgres instance</li>
+        </ul>
+      </section>
+
+      <!-- Local dev -->
+      <section class="docs-section" id="local-dev">
+        <span class="section-label label-start">Getting Started</span>
+        <h2>Local Development</h2>
+
+        <h3><span class="step-num">1</span> Start Postgres</h3>
+        <pre><code>docker run -d \
+  --name nano_crypto_games_local_db_container \
+  -e POSTGRES_USER=nano \
+  -e POSTGRES_PASSWORD=nano \
+  -e POSTGRES_DB=nano_crypto_games_local_db \
+  -p 5432:5432 \
+  postgres:16</code></pre>
+
+        <h3><span class="step-num">2</span> Build and run the server</h3>
+        <pre><code>go build ./...
+go run ./cmd/server</code></pre>
+
+        <h3><span class="step-num">3</span> Stop and remove the container</h3>
+        <pre><code>docker stop nano_crypto_games_local_db_container
+docker rm nano_crypto_games_local_db_container</code></pre>
+      </section>
+
+      <!-- Env vars -->
+      <section class="docs-section" id="env-vars">
+        <span class="section-label label-config">Configuration</span>
+        <h2>Environment Variables</h2>
+        <p>Copy <code>env-example.txt</code> to <code>.env</code> and fill in your values. Variables without a default are required for the relevant feature to work.</p>
+
+        <table class="docs-table">
+          <thead>
+            <tr>
+              <th>Variable</th>
+              <th>Description</th>
+              <th>Default</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>DATABASE_URL</code></td>
+              <td>Postgres connection string</td>
+              <td><code>postgres://nano:nano@localhost:5432/nano_crypto_games_local_db?sslmode=disable</code></td>
+            </tr>
+            <tr>
+              <td><code>DONATION_ADDRESS</code></td>
+              <td>Nano address to receive donations</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><code>FAUCET_SEED</code></td>
+              <td>Seed for the faucet wallet</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><code>FAUCET_TEST_MODE</code></td>
+              <td>Disable real payouts for testing</td>
+              <td><code>false</code></td>
+            </tr>
+            <tr>
+              <td><code>NANO_MASTER_SEED</code></td>
+              <td>HD wallet master seed — keep secret</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><code>NANO_RPC_API_KEY</code></td>
+              <td>API key for the primary Nano node</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><code>NANO_RPC_FALLBACK_URL</code></td>
+              <td>Fallback public Nano node</td>
+              <td><code>https://us-1.nano.to</code></td>
+            </tr>
+            <tr>
+              <td><code>NANO_RPC_PRIMARY_URL</code></td>
+              <td>Primary public Nano node</td>
+              <td><code>https://rpc.nano.to</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Master seed -->
+      <section class="docs-section" id="master-seed">
+        <span class="section-label label-config">Configuration</span>
+        <h2>Master Seed</h2>
+        <p>A 32-byte secret used to derive every player's Nano wallet via HD derivation.</p>
+
+        <div class="callout callout-warn">
+          <span class="callout-icon">⚠</span>
+          <div><strong>Back it up.</strong> Losing the master seed means losing access to all funds held in player wallets. Never commit it or reuse it across environments — if you change it, all existing wallet addresses will change.</div>
+        </div>
+
+        <p>Generate one with OpenSSL:</p>
+        <pre><code>openssl rand -hex 32</code></pre>
+        <p>Put the 64-character hex output in your <code>.env</code> as <code>NANO_MASTER_SEED</code>.</p>
+
+        <div class="callout callout-info">
+          <span class="callout-icon">ℹ</span>
+          <div>If <code>NANO_MASTER_SEED</code> is not set, the server generates a random ephemeral seed on each start — wallets are non-persistent in this mode, suitable only for local development.</div>
+        </div>
+      </section>
+
+      <!-- Games -->
+      <section class="docs-section" id="games">
+        <span class="section-label label-games">Games</span>
+        <h2>Games</h2>
+        <p>Each game is independently deployable and driven by the same Nano RPC layer.</p>
+
+        <div class="game-cards">
+          <a href="/faucet" class="game-card card-shooter">
+            <div class="card-tag tag-live">Live</div>
+            <div class="game-card-icon">🚰</div>
+            <h4>Faucet Shooter</h4>
+            <p>Free-to-play multiplayer shooter. Earn <strong>0.00001 XNO</strong> per kill and heal from the community faucet. No deposit needed.</p>
+          </a>
+          <div class="game-card card-rpg card-soon">
+            <div class="card-tag tag-soon">Coming Soon</div>
+            <div class="game-card-icon">⚔️</div>
+            <h4>Nano Faucet RPG</h4>
+            <p>Walk a multiplayer grid, chat with players, and withdraw your XNO earnings at any time.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Code flows -->
+      <section class="docs-section" id="code-flows">
+        <span class="section-label label-flow">Code Flows</span>
+        <h2>Code Flows</h2>
+        <p>Step-by-step visual diagrams tracing a user action through every server layer — from browser to Nano RPC and back.</p>
+
+        <div class="flow-cards">
+          <a href="/docs/code-flow/shooter" class="flow-card">
+            <div class="flow-card-icon">🔫</div>
+            <h4>Shooter Code Flow</h4>
+            <p>Wallet entry → WebSocket → kill/heal → PoW → Nano send → player reward. Includes bot flow comparison.</p>
+          </a>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/static/docs/docs.js"></script>
+</body>
+</html>

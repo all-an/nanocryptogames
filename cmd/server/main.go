@@ -114,6 +114,8 @@ func main() {
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
 	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_shooter/*.html"))
 	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_multiplayer_rpg_templates/*.html"))
+	tmpl = template.Must(tmpl.ParseGlob("internal/templates/docs/*.html"))
+	tmpl = template.Must(tmpl.ParseGlob("internal/templates/docs/code-flow/*.html"))
 
 	// ── Faucet hub + wallet ───────────────────────────────────────────────────
 	faucetHub := shooter.NewFaucetHub()
@@ -149,6 +151,8 @@ func main() {
 		http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
 	mux.Handle("GET /", handler.NewLandingHandler(tmpl, database, faucetAddr))
+	mux.Handle("GET /docs", handler.NewDocsHandler(tmpl))
+	mux.Handle("GET /docs/code-flow/shooter", handler.NewShooterCodeFlowHandler(tmpl))
 
 	// ── Faucet routes ─────────────────────────────────────────────────────────
 	faucetGamePage := handler.NewFaucetGamePageHandler(tmpl, faucetAddr)

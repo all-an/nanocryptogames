@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shooter Code Flow — Nano Crypto Games Docs</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/docs/docs.css" />
+  <link rel="stylesheet" href="/static/docs/code-flow/shooter-code-flow.css" />
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="/docs">&#8592; Docs</a>
+  <h1>Faucet Shooter — Code Flow</h1>
+  <span class="badge">Click any step to expand</span>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#60d0ff;"></div> Client / Browser</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#a0ff80;"></div> HTTP Handler (server)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffd060;"></div> Room / Game Loop</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ff9060;"></div> Payout Loop</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#c0a0f0;"></div> Nano RPC / Wallet</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#80e8c0;"></div> Database</div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="tab-player">Player Flow</button>
+  <button class="tab-btn" data-tab="tab-bot">Bot Flow</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: PLAYER FLOW                                                       -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="flow-container">
+<div class="flow-panel active" id="tab-player">
+  <div class="swimlane-wrap">
+  <div class="swimlane-diagram">
+
+    <!-- Lane headers (6 lanes) -->
+    <div class="lane-headers" style="grid-template-columns: repeat(6, 1fr);">
+      <div class="lane-header col-client">Client</div>
+      <div class="lane-header col-server">Handler</div>
+      <div class="lane-header col-room">Room Loop</div>
+      <div class="lane-header col-payout">Payout Loop</div>
+      <div class="lane-header col-nano">Nano RPC</div>
+      <div class="lane-header col-db">Database</div>
+    </div>
+
+    <div class="steps-grid">
+
+      <!-- ── Step 1: Enter wallet ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell">
+          <div class="step-bubble bg-client">
+            <span class="col-client">Enter wallet address</span>
+            <span class="fn">GET /faucet/game/{roomID}</span>
+            <span class="file-ref">browser → server</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-server">
+            <span class="col-server">Serve game page</span>
+            <span class="fn">FaucetGamePageHandler</span>
+            <span class="file-ref">handler/faucet.go</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 1 — Player opens game page</h4>
+        <p>The browser hits <code>GET /faucet/game/{roomID}</code>. The server renders the shooter template with the faucet address embedded so the client knows where the community wallet lives.</p>
+        <div class="detail-meta">
+          <span class="detail-tag">handler/faucet.go</span>
+          <span class="detail-tag">FaucetGamePageHandler.ServeHTTP()</span>
+          <span class="detail-tag">template: faucet_game.html</span>
+        </div>
+      </div>
+
+      <!-- ── Step 2: WebSocket upgrade ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell">
+          <div class="step-bubble bg-client">
+            <span class="col-client">Connect WebSocket</span>
+            <span class="fn">GET /faucet/ws/{roomID}</span>
+            <span class="file-ref">?nick=&team=&address=</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-server">
+            <span class="col-server">Upgrade &amp; validate</span>
+            <span class="fn">FaucetWSHandler.ServeHTTP()</span>
+            <span class="file-ref">handler/faucet.go:324</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 2 — WebSocket handshake</h4>
+        <p>The JS client opens a WebSocket to <code>/faucet/ws/{roomID}</code> with query params: <code>nick</code> (display name, max 12 chars), <code>team</code> (red/blue), and <code>address</code> (the player's nano_ receiving address).</p>
+        <p>The server calls <code>upgrader.Upgrade()</code>, then reads and validates all params. Nickname is stripped of control characters. The client IP is captured via <code>faucetClientIP()</code> for abuse detection.</p>
+        <pre>shooter.NewPlayer(newID(), roomID)
+// Health: 99, buffered send channel cap 64
+// FaucetRewardCh: buffered channel cap 16</pre>
+        <div class="detail-meta">
+          <span class="detail-tag">handler/faucet.go:324</span>
+          <span class="detail-tag">games/shooter/player.go:NewPlayer()</span>
+        </div>
+      </div>
+
+      <!-- ── Step 3: Join room ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-server">
+            <span class="col-server">Join room</span>
+            <span class="fn">hub.JoinRoom(roomID, p)</span>
+            <span class="file-ref">handler/faucet.go:381</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-room">
+            <span class="col-room">Assign color &amp; spawn</span>
+            <span class="fn">Room.Join()</span>
+            <span class="file-ref">games/shooter/room.go:161</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-db">
+            <span class="col-db">Log session</span>
+            <span class="fn">db.LogSession()</span>
+            <span class="file-ref">db/postgres.go:141</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 3 — Player joins room</h4>
+        <p><code>Hub.JoinRoom()</code> creates the room if it doesn't exist, then calls <code>Room.Join()</code> which assigns a colour from the team palette and a random spawn position on the 25×17 grid.</p>
+        <p>Three goroutines are started concurrently:</p>
+        <pre>go payoutLoop(ctx, p)   // listens on FaucetRewardCh
+go writePump(ctx, p)    // drains p.Send channel → WebSocket
+go faucetReadPump(ctx, p) // reads WebSocket → room.inputCh</pre>
+        <p>The DB records the session (playerID, address, roomID, team, IP, nick).</p>
+        <div class="detail-meta">
+          <span class="detail-tag">games/shooter/hub.go:JoinRoom()</span>
+          <span class="detail-tag">games/shooter/room.go:Room.Join()</span>
+          <span class="detail-tag">handler/faucet.go:398-401</span>
+        </div>
+      </div>
+
+      <!-- ── Step 4: Init message ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell">
+          <div class="step-bubble bg-client">
+            <span class="col-client">Receive "init"</span>
+            <span class="fn">{type:"init", id, team,</span>
+            <span class="file-ref">color, nanoAddress…}</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-server">
+            <span class="col-server">Send init JSON</span>
+            <span class="fn">p.Send(initMsg)</span>
+            <span class="file-ref">handler/faucet.go:384</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 4 — Init message to client</h4>
+        <p>Immediately after joining, the server sends a one-time <code>init</code> message so the browser knows its own player ID, colour, team, and which faucet address is funding the rewards.</p>
+        <pre>{
+  "type":        "init",
+  "id":          "a3f8b2c1",     // random 8-byte hex
+  "team":        "red",
+  "color":       "#e05050",
+  "nanoAddress": "nano_1abc...", // player's receiving address
+  "nickname":    "CryptoSniper",
+  "faucetAddress":"nano_3xyz..."  // community wallet (read-only)
+}</pre>
+        <div class="detail-meta">
+          <span class="detail-tag">handler/faucet.go:384-393</span>
+        </div>
+      </div>
+
+      <!-- ── Step 5: Game loop ticks ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell">
+          <div class="step-bubble bg-client">
+            <span class="col-client">Receive world state</span>
+            <span class="fn">{type:"state", players…}</span>
+            <span class="file-ref">every 50ms</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-room">
+            <span class="col-room">Tick → broadcast</span>
+            <span class="fn">Room.Run() → broadcastState()</span>
+            <span class="file-ref">games/shooter/room.go:140</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 5 — Game loop (50ms tick)</h4>
+        <p>The room goroutine <code>Room.Run()</code> ticks every 50ms. Each tick it calls <code>broadcastState()</code> which serialises the full world (all players, positions, health, heal packs) and pushes it to every connected player's send channel.</p>
+        <p>The room also drains <code>inputCh</code> — actions queued by <code>faucetReadPump</code> — and dispatches them through <code>applyInput()</code>.</p>
+        <pre>select {
+  case &lt;-ticker.C:     broadcastState()
+  case in := &lt;-inputCh: applyInput(in)
+  case &lt;-done:         return
+}</pre>
+        <div class="detail-meta">
+          <span class="detail-tag">games/shooter/room.go:140-155</span>
+          <span class="detail-tag">tickRate: 50ms</span>
+        </div>
+      </div>
+
+      <!-- ── Step 6: Player action ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell">
+          <div class="step-bubble bg-client">
+            <span class="col-client">Send action</span>
+            <span class="fn">{action:"shoot",</span>
+            <span class="file-ref">targetID, gx, gy}</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-server">
+            <span class="col-server">Queue input</span>
+            <span class="fn">faucetReadPump() → room.Submit()</span>
+            <span class="file-ref">handler/faucet.go:504</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-room">
+            <span class="col-room">Apply action</span>
+            <span class="fn">applyShoot() / applyHelp()</span>
+            <span class="file-ref">games/shooter/room.go:317</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 6 — Player sends action</h4>
+        <p>The client sends a JSON action over the WebSocket. Valid actions: <code>move</code>, <code>shoot</code>, <code>help</code> (heal), <code>reload</code>.</p>
+        <p><code>faucetReadPump()</code> unmarshals the message and calls <code>room.Submit(Input{...})</code> which enqueues it to <code>room.inputCh</code>. The room loop picks it up on the next tick via <code>applyInput()</code>.</p>
+        <p>For <strong>shoot</strong>: <code>applyShoot()</code> validates the shooter is alive, the target exists and is an enemy, then checks line-of-sight using Bresenham's algorithm (<code>HasLineOfSight()</code> in <code>physics.go:53</code>). It deducts 33 health from the target.</p>
+        <p>For <strong>heal</strong>: <code>applyHelp()</code> requires the target to be at exactly 33 health, on the same team, and adjacent (Manhattan distance ≤ 1). Restores 33 health.</p>
+        <pre>// Bresenham line-of-sight (physics.go:53)
+func HasLineOfSight(x0, y0, x1, y1 int) bool {
+  // steps through every cell on the line
+  // returns false if any cell is a barrier
+}</pre>
+        <div class="detail-meta">
+          <span class="detail-tag">games/shooter/room.go:317 applyShoot()</span>
+          <span class="detail-tag">games/shooter/room.go:461 applyHelp()</span>
+          <span class="detail-tag">games/shooter/physics.go:53 HasLineOfSight()</span>
+        </div>
+      </div>
+
+      <!-- ── Step 7: Kill / heal confirmed → signal ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-room">
+            <span class="col-room">Check same-IP abuse</span>
+            <span class="fn">shooter.RemoteAddr != target.RemoteAddr</span>
+            <span class="file-ref">games/shooter/room.go:394</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-payout">
+            <span class="col-payout">Signal "kill" / "heal"</span>
+            <span class="fn">FaucetRewardCh &lt;- reason</span>
+            <span class="file-ref">handler/faucet.go:413</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 7 — Kill/heal confirmed, reward signal sent</h4>
+        <p>If the action results in a kill (target health → 0) or a heal, the room checks for same-IP abuse: if shooter and target share the same remote IP and <code>DisableSameIPCheck</code> is false, the reward is blocked and a log entry is written. No punishment — just no reward.</p>
+        <p>Otherwise, a non-blocking send pushes <code>"kill"</code> or <code>"heal"</code> into the player's <code>FaucetRewardCh</code> (capacity 16). If the channel is full the signal is silently dropped.</p>
+        <pre>select {
+  case shooter.FaucetRewardCh &lt;- "kill":
+  default: // channel full — drop
+}</pre>
+        <p>The payout loop goroutine picks this up immediately.</p>
+        <div class="detail-meta">
+          <span class="detail-tag">games/shooter/room.go:394-407 (kill)</span>
+          <span class="detail-tag">games/shooter/room.go:487-501 (heal)</span>
+        </div>
+      </div>
+
+      <!-- ── Step 8: Payout loop → daily limit ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-payout">
+            <span class="col-payout">Check daily limit</span>
+            <span class="fn">sendReward() → db.FaucetPayoutsToday()</span>
+            <span class="file-ref">handler/faucet.go:443</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-db">
+            <span class="col-db">Count today's payouts</span>
+            <span class="fn">FaucetPayoutsToday(ip)</span>
+            <span class="file-ref">db/postgres.go:195</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 8 — Daily payout limit check</h4>
+        <p><code>payoutLoop()</code> receives the signal and calls <code>sendReward(ctx, p, reason)</code> with a 300-second timeout context. This is sequential per player — no concurrent sends.</p>
+        <p>Before any Nano is sent, it checks:</p>
+        <ul style="color:#b0a0cc;padding-left:18px;margin:8px 0;">
+          <li>Faucet wallet is configured (<code>FAUCET_SEED</code> set)</li>
+          <li>Player provided an address</li>
+          <li>IP has not exceeded <strong>20 payouts per day</strong> (UTC midnight reset)</li>
+        </ul>
+        <p>Set <code>FAUCET_TEST_MODE=true</code> to bypass the limit and skip real sends during development.</p>
+        <pre>const maxDailyPayoutsPerIP = 20
+// faucet.go:32</pre>
+        <div class="detail-meta">
+          <span class="detail-tag">handler/faucet.go:443 sendReward()</span>
+          <span class="detail-tag">handler/faucet.go:413 payoutLoop()</span>
+          <span class="detail-tag">db/postgres.go:195 FaucetPayoutsToday()</span>
+        </div>
+      </div>
+
+      <!-- ── Step 9: FaucetSender.Send ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-payout">
+            <span class="col-payout">Execute send</span>
+            <span class="fn">sender.Send(ctx, address, amount)</span>
+            <span class="file-ref">handler/faucet.go:468</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-nano">
+            <span class="col-nano">Build &amp; sign block</span>
+            <span class="fn">nano.SendFast()</span>
+            <span class="file-ref">nano/transaction.go:29</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 9 — Building the Nano send block</h4>
+        <p><code>FaucetSender.Send()</code> pops the pre-cached PoW, then calls <code>nano.SendFast()</code>:</p>
+        <pre>1. rpc.AccountInfo()      // get frontier, balance, representative
+2. validate balance ≥ amount
+3. newBalance = balance - amount
+4. addressToPublicKey()   // decode player's nano_ address
+5. if no cached PoW:
+     rpc.GenerateWork()   // race: remote GPU vs local CPU Blake2b mining
+6. stateBlockHash()       // Blake2b-256 of all block fields
+7. ed25519.Sign(hash, privateKey)
+8. rpc.ProcessBlock("send", block)</pre>
+        <p>Reward amount: <code>10000000000000000000000000 raw</code> = <strong>0.00001 XNO</strong> per kill or heal.</p>
+        <div class="detail-meta">
+          <span class="detail-tag">nano/transaction.go:29 SendFast()</span>
+          <span class="detail-tag">nano/rpc.go:174 GenerateWork()</span>
+          <span class="detail-tag">nano/rpc.go:230 generateWorkCPU()</span>
+        </div>
+      </div>
+
+      <!-- ── Step 10: PoW generation ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-nano">
+            <span class="col-nano">Generate PoW (race)</span>
+            <span class="fn">GenerateWork() — GPU vs CPU</span>
+            <span class="file-ref">nano/rpc.go:174 / :230</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 10 — Proof-of-Work generation</h4>
+        <p>Nano requires a small PoW nonce for every block to prevent spam. <code>GenerateWork()</code> races two concurrent approaches and returns whichever finishes first:</p>
+        <ul style="color:#b0a0cc;padding-left:18px;margin:8px 0;">
+          <li><strong>Remote GPU peers</strong> — called via the Nano RPC <code>work_generate</code> action (fast, ~200ms if available)</li>
+          <li><strong>Local CPU</strong> — <code>generateWorkCPU()</code>: pure Go Blake2b mining loop (~1–5s at send difficulty)</li>
+        </ul>
+        <p>At startup, <code>FaucetSender.Init()</code> pre-computes PoW for the current wallet frontier in the background so the very first send is instant. After each send, a new pre-cache is triggered immediately for the next frontier.</p>
+        <div class="detail-meta">
+          <span class="detail-tag">nano/rpc.go:174 GenerateWork()</span>
+          <span class="detail-tag">nano/rpc.go:230 generateWorkCPU()</span>
+          <span class="detail-tag">handler/faucet.go:67 FaucetSender.Init()</span>
+        </div>
+      </div>
+
+      <!-- ── Step 11: ProcessBlock → confirmed ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-nano">
+            <span class="col-nano">Submit block</span>
+            <span class="fn">rpc.ProcessBlock("send", block)</span>
+            <span class="file-ref">nano/rpc.go:278</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 11 — Block submitted to the Nano network</h4>
+        <p><code>Client.ProcessBlock()</code> posts the signed state block to the configured Nano node (primary first, then fallback). The node validates and broadcasts it to the network.</p>
+        <p>Retry logic: 3 attempts per URL, with exponential backoff on 429 / 5xx responses. RPC timeout per attempt: 60s.</p>
+        <p>On success the confirmed block hash is returned.</p>
+        <pre>POST https://rpc.nano.to
+{
+  "action": "process",
+  "json_block": "true",
+  "subtype": "send",
+  "block": { "type":"state", "account":..., "previous":...,
+             "representative":..., "balance":...,
+             "link":..., "work":..., "signature":... }
+}</pre>
+        <div class="detail-meta">
+          <span class="detail-tag">nano/rpc.go:278 ProcessBlock()</span>
+          <span class="detail-tag">primary: NANO_RPC_PRIMARY_URL</span>
+          <span class="detail-tag">fallback: NANO_RPC_FALLBACK_URL</span>
+        </div>
+      </div>
+
+      <!-- ── Step 12: Record payout + notify player ── -->
+      <div class="step-row" style="grid-template-columns: repeat(6, 1fr);">
+        <div class="step-cell">
+          <div class="step-bubble bg-client">
+            <span class="col-client">Receive reward UI</span>
+            <span class="fn">{type:"faucet_reward",</span>
+            <span class="file-ref">xno, reason, earned}</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-payout">
+            <span class="col-payout">Notify player</span>
+            <span class="fn">p.Send(rewardMsg)</span>
+            <span class="file-ref">handler/faucet.go:481</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-db">
+            <span class="col-db">Record payout</span>
+            <span class="fn">db.RecordFaucetPayout()</span>
+            <span class="file-ref">db/postgres.go:184</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-panel">
+        <h4>Step 12 — Payout confirmed, player notified</h4>
+        <p>After the block is confirmed, two things happen in parallel:</p>
+        <ul style="color:#b0a0cc;padding-left:18px;margin:8px 0;">
+          <li>The DB records the payout: reason, to-address, IP, amount raw, block hash.</li>
+          <li>The player receives a JSON message that the browser renders as an in-game toast/banner.</li>
+        </ul>
+        <pre>{
+  "type":   "faucet_reward",
+  "reason": "kill",          // or "heal"
+  "xno":    "0.000010",
+  "earned": "0.000050"       // running session total
+}</pre>
+        <p>The player's <code>FaucetEarned</code> big.Int accumulator is updated so the running total stays correct for the session even without querying the DB.</p>
+        <div class="detail-meta">
+          <span class="detail-tag">handler/faucet.go:481-497</span>
+          <span class="detail-tag">db/postgres.go:184 RecordFaucetPayout()</span>
+        </div>
+      </div>
+
+    </div><!-- /steps-grid -->
+  </div><!-- /swimlane-diagram -->
+  </div><!-- /swimlane-wrap -->
+</div><!-- /tab-player -->
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: BOT FLOW                                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="flow-panel" id="tab-bot">
+  <div class="swimlane-wrap">
+  <div class="swimlane-diagram">
+
+    <div class="lane-headers" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="lane-header col-client">Client (Bot Page)</div>
+      <div class="lane-header col-server">Handler</div>
+      <div class="lane-header col-nano">Nano RPC</div>
+      <div class="lane-header col-db">Database</div>
+    </div>
+
+    <div class="steps-grid">
+
+      <!-- Bot Step 1 -->
+      <div class="step-row" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="step-cell">
+          <div class="step-bubble bg-client">
+            <span class="col-client">Open bots page</span>
+            <span class="fn">GET /faucet/bots</span>
+            <span class="file-ref">browser</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-server">
+            <span class="col-server">Serve bots template</span>
+            <span class="fn">FaucetBotsPageHandler</span>
+            <span class="file-ref">handler/faucet.go:198</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Bot Step 1 — Bots page</h4>
+        <p>The bots page is a practice mode — no real WebSocket game room. The player just enters their nano address and defeats bots (client-side logic). There is no server-side game state or room for bot matches.</p>
+        <div class="detail-meta">
+          <span class="detail-tag">handler/faucet.go:198 FaucetBotsPageHandler</span>
+          <span class="detail-tag">template: faucet_bots.html</span>
+        </div>
+      </div>
+
+      <!-- Bot Step 2 -->
+      <div class="step-row" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="step-cell">
+          <div class="step-bubble bg-client">
+            <span class="col-client">Kill bot → POST reward</span>
+            <span class="fn">POST /faucet/bots/reward</span>
+            <span class="file-ref">{"address":"nano_…"}</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-server">
+            <span class="col-server">Validate &amp; limit check</span>
+            <span class="fn">FaucetBotsRewardHandler</span>
+            <span class="file-ref">handler/faucet.go:222</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-db">
+            <span class="col-db">Count today's payouts</span>
+            <span class="fn">FaucetPayoutsToday(ip)</span>
+            <span class="file-ref">db/postgres.go:195</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-panel">
+        <h4>Bot Step 2 — Client POSTs reward request</h4>
+        <p>When the client-side bot logic detects a kill, the browser fires a <code>POST /faucet/bots/reward</code> with the player's address. The server immediately checks:</p>
+        <ul style="color:#b0a0cc;padding-left:18px;margin:8px 0;">
+          <li>Must be POST</li>
+          <li>Address must be present</li>
+          <li>IP must not exceed 20 payouts/day</li>
+        </ul>
+        <p>Unlike the multiplayer flow, there is no same-IP check between players — just the daily IP rate limit.</p>
+        <div class="detail-meta">
+          <span class="detail-tag">handler/faucet.go:222 ServeHTTP()</span>
+          <span class="detail-tag">maxDailyPayoutsPerIP = 20</span>
+        </div>
+      </div>
+
+      <!-- Bot Step 3 -->
+      <div class="step-row" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="step-cell">
+          <div class="step-bubble bg-client">
+            <span class="col-client">Receive HTTP 200</span>
+            <span class="fn">{"xno":"0.000010"}</span>
+            <span class="file-ref">instant response</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-server">
+            <span class="col-server">Respond immediately</span>
+            <span class="fn">w.Write(jsonResponse)</span>
+            <span class="file-ref">handler/faucet.go:255</span>
+          </div>
+        </div>
+        <div class="step-cell"></div>
+        <div class="step-cell"></div>
+      </div>
+      <div class="detail-panel">
+        <h4>Bot Step 3 — Immediate HTTP response</h4>
+        <p>Unlike the WebSocket flow where the client waits for <code>faucet_reward</code>, the bot endpoint responds with HTTP 200 immediately — before PoW is generated or the block is sent. This prevents the browser from hanging on a slow request.</p>
+        <pre>// Response is sent before the goroutine starts
+w.WriteHeader(http.StatusOK)
+json.NewEncoder(w).Encode(map[string]string{
+  "xno": "0.000010",
+})
+// Then: go func() { sender.Send(...) }()</pre>
+        <div class="detail-meta">
+          <span class="detail-tag">handler/faucet.go:255-259</span>
+        </div>
+      </div>
+
+      <!-- Bot Step 4 -->
+      <div class="step-row" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="step-cell"></div>
+        <div class="step-cell">
+          <div class="step-bubble bg-server">
+            <span class="col-server">Background goroutine</span>
+            <span class="fn">go sender.Send(ctx, addr, amt)</span>
+            <span class="file-ref">handler/faucet.go:259</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-nano">
+            <span class="col-nano">Build, sign &amp; submit block</span>
+            <span class="fn">nano.SendFast() → ProcessBlock()</span>
+            <span class="file-ref">nano/transaction.go:29</span>
+          </div>
+        </div>
+        <div class="step-cell">
+          <div class="step-bubble bg-db">
+            <span class="col-db">Record payout</span>
+            <span class="fn">db.RecordFaucetPayout()</span>
+            <span class="file-ref">db/postgres.go:184</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-panel">
+        <h4>Bot Step 4 — Background Nano send</h4>
+        <p>The actual Nano send happens in a goroutine after the HTTP response has already been written. The flow is identical to the multiplayer payout path:</p>
+        <pre>go func() {
+  hash, err := sender.Send(ctx, address, faucetRewardRaw)
+  if err != nil {
+    log.Printf("bot reward send failed: %v", err)
+    return
+  }
+  db.RecordFaucetPayout("kill", address, ip, faucetRewardRaw, hash)
+}()</pre>
+        <p>The 0.00001 XNO reaches the player's wallet asynchronously. If the send fails, only a server-side log entry is written — the client already received its confirmation message.</p>
+        <div class="detail-meta">
+          <span class="detail-tag">handler/faucet.go:259-275</span>
+          <span class="detail-tag">nano/transaction.go:29 SendFast()</span>
+          <span class="detail-tag">db/postgres.go:184 RecordFaucetPayout()</span>
+        </div>
+      </div>
+
+    </div><!-- /steps-grid -->
+  </div><!-- /swimlane-diagram -->
+  </div><!-- /swimlane-wrap -->
+
+  <!-- Bot vs Player diff note -->
+  <div style="margin-top:28px;padding:16px 20px;background:#12112a;border:1px solid #3a2a5a;border-radius:8px;font-size:0.85rem;color:#b0a0cc;max-width:700px;">
+    <strong style="color:#d4b8ff;">Key differences: bot flow vs multiplayer flow</strong>
+    <table style="margin-top:10px;width:100%;border-collapse:collapse;">
+      <thead><tr style="border-bottom:1px solid #2a2050;">
+        <th style="text-align:left;padding:6px 10px;color:#c0a0f0;font-size:0.8rem;">Aspect</th>
+        <th style="text-align:left;padding:6px 10px;color:#a0ff80;font-size:0.8rem;">Multiplayer</th>
+        <th style="text-align:left;padding:6px 10px;color:#ffd060;font-size:0.8rem;">Bots</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #1a1838;"><td style="padding:6px 10px;">Transport</td><td style="padding:6px 10px;">WebSocket</td><td style="padding:6px 10px;">HTTP POST</td></tr>
+        <tr style="border-bottom:1px solid #1a1838;"><td style="padding:6px 10px;">Game state</td><td style="padding:6px 10px;">Server-side room + hub</td><td style="padding:6px 10px;">Client-side only</td></tr>
+        <tr style="border-bottom:1px solid #1a1838;"><td style="padding:6px 10px;">Kill detection</td><td style="padding:6px 10px;">applyShoot() in room loop</td><td style="padding:6px 10px;">Browser JS</td></tr>
+        <tr style="border-bottom:1px solid #1a1838;"><td style="padding:6px 10px;">Same-IP check</td><td style="padding:6px 10px;">Yes (shooter vs target)</td><td style="padding:6px 10px;">No</td></tr>
+        <tr style="border-bottom:1px solid #1a1838;"><td style="padding:6px 10px;">Daily limit</td><td style="padding:6px 10px;">20/IP/day</td><td style="padding:6px 10px;">20/IP/day</td></tr>
+        <tr><td style="padding:6px 10px;">Send timing</td><td style="padding:6px 10px;">After block confirmed</td><td style="padding:6px 10px;">Background (response first)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /tab-bot -->
+</div><!-- /flow-container -->
+
+<script src="/static/docs/code-flow/shooter-code-flow.js"></script>
+</body>
+</html>
