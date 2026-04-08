@@ -1332,6 +1332,16 @@ canvas {
   animation: tip-glow 2.4s ease-in-out infinite alternate;
 }
 
+.welcome-tip--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.welcome-tip--link:hover {
+  filter: brightness(1.15);
+}
+
 @keyframes tip-glow {
   from { box-shadow: 0 0 6px 2px #c8900033, 0 0 14px 3px #a0600018, inset 0 1px 0 #ffe06622; }
   to   { box-shadow: 0 0 14px 5px #c89000aa, 0 0 28px 8px #ffd70044, inset 0 1px 0 #ffe06655; }
@@ -1537,8 +1547,19 @@ canvas {
 .landing-nav {
   position: fixed;
   top: 16px;
-  right: 20px;
+  left: 0;
+  right: 0;
   z-index: 100;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  pointer-events: none;
+}
+
+.landing-nav > * { pointer-events: auto; }
+
+.landing-nav-right {
   display: flex;
   gap: 8px;
 }
@@ -1555,6 +1576,13 @@ canvas {
   font-size: 0.88rem;
   font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.landing-nav-btn:hover {
+  background: #251838;
+  border-color: #6a4a9a;
 }
 
 /* ── Landing page mobile ── */

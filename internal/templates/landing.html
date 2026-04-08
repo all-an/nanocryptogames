@@ -10,11 +10,16 @@
 </head>
 <body>
   <div class="landing-nav">
-    <a href="https://github.com/all-an/nanocryptogames" target="_blank" rel="noopener" class="landing-nav-btn">
-      <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-      Source
-    </a>
-    <a href="/docs" class="landing-nav-btn">Docs</a>
+    <button id="lang-btn" class="landing-nav-btn" title="Mudar para Português" type="button" style="font-size:1.8rem;padding:4px 10px;line-height:1;">
+      🇧🇷
+    </button>
+    <div class="landing-nav-right">
+      <a href="https://github.com/all-an/nanocryptogames" target="_blank" rel="noopener" class="landing-nav-btn">
+        <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        Source
+      </a>
+      <a href="/docs" class="landing-nav-btn">Docs</a>
+    </div>
   </div>
   <div class="welcome">
     <header class="welcome-header">
@@ -25,8 +30,8 @@
         </span>
         Nano Crypto Games
       </h1>
-      <p class="welcome-tagline">A collection of real-money browser games powered by Go and Nano (XNO)</p>
-      <p class="welcome-tip"><strong>Why Nano:</strong> Best cryptocurrency for microtransactions, decentralized, feeless, fast and lightweight</p>
+      <p class="welcome-tagline" data-i18n="tagline">A collection of real-money browser games powered by Go and Nano (XNO)</p>
+      <a href="https://nano.org" target="_blank" rel="noopener" class="welcome-tip welcome-tip--link" data-i18n="why-nano"><strong>Why Nano:</strong> Best cryptocurrency for microtransactions, decentralized, feeless, fast and lightweight</a>
     </header>
 
     <div class="welcome-cards">
@@ -34,15 +39,15 @@
       <div class="welcome-card mode-card mode-card--faucet">
         <div class="welcome-card-icon">🚰</div>
         <h2>Faucet Shooter Multiplayer</h2>
-        <p>Play for free — earn <strong>0.00001 XNO</strong> for every kill and heal, paid from the community faucet. No deposit required.</p>
-        <a href="/faucet" class="welcome-play-btn welcome-play-btn--sm" style="opacity:1;pointer-events:auto;background:#2a7a4a;">Play Faucet Shooter Multiplayer</a>
+        <p data-i18n="faucet-desc">Play for free — earn <strong>0.00001 XNO</strong> for every kill and heal, paid from the community faucet. No deposit required.</p>
+        <a href="/faucet" class="welcome-play-btn welcome-play-btn--sm" style="opacity:1;pointer-events:auto;background:#2a7a4a;" data-i18n="faucet-btn">Play Faucet Shooter Multiplayer</a>
       </div>
 
       <div class="welcome-card mode-card">
         <div class="welcome-card-icon">💳</div>
-        <h2>Nano Simple Wallet</h2>
-        <p>A lightweight Nano wallet in the browser. Generate a seed, send and receive XNO instantly with no fees, no sign-up required.</p>
-        <button class="welcome-play-btn welcome-play-btn--sm" data-action="create-wallet" type="button" style="background:#4a2a7a;border:none;cursor:pointer;">Create Wallet</button>
+        <h2 data-i18n="wallet-title">Nano Simple Wallet</h2>
+        <p data-i18n="wallet-desc">A lightweight Nano wallet in the browser. Generate a seed, send and receive XNO instantly with no fees, no sign-up required.</p>
+        <button class="welcome-play-btn welcome-play-btn--sm" data-action="create-wallet" data-i18n="wallet-btn" type="button" style="background:#4a2a7a;border:none;cursor:pointer;">Create Wallet</button>
       </div>
 
       <div class="welcome-card mode-card">
@@ -84,5 +89,42 @@
     </div>
   </div>
   <script src="/static/wallet/wallet.js"></script>
+  <script>
+    (function () {
+      var translations = {
+        en: {
+          tagline:       'A collection of real-money browser games powered by Go and Nano (XNO)',
+          'faucet-desc': 'Play for free — earn 0.00001 XNO for every kill and heal, paid from the community faucet. No deposit required.',
+          'faucet-btn':  'Play Faucet Shooter Multiplayer',
+          'wallet-title': 'Nano Simple Wallet',
+          'wallet-desc':  'A lightweight Nano wallet in the browser. Generate a seed, send and receive XNO instantly with no fees, no sign-up required.',
+          'wallet-btn':   'Create Wallet',
+          'why-nano':     'Why Nano: Best cryptocurrency for microtransactions, decentralized, feeless, fast and lightweight'
+        },
+        pt: {
+          tagline:       'Uma coleção de jogos de navegador com dinheiro real, feitos com Go e Nano (XNO)',
+          'faucet-desc': 'Jogue de graça — ganhe 0.00001 XNO por cada kill e cura, pago pela faucet da comunidade. Sem depósito necessário.',
+          'faucet-btn':  'Jogar Faucet Shooter Multiplayer',
+          'wallet-title': 'Nano Carteira Simples',
+          'wallet-desc':  'Uma carteira Nano leve no navegador. Gere uma seed, envie e receba XNO instantaneamente sem taxas, sem cadastro.',
+          'wallet-btn':   'Criar Carteira',
+          'why-nano':     'Por que Nano: A melhor criptomoeda para microtransações, descentralizada, sem taxas, rápida e leve'
+        }
+      };
+
+      var lang = 'en';
+      var btn  = document.getElementById('lang-btn');
+
+      btn.addEventListener('click', function () {
+        lang = lang === 'en' ? 'pt' : 'en';
+        btn.title = lang === 'en' ? 'Mudar para Português' : 'Switch to English';
+        btn.textContent = lang === 'en' ? '🇧🇷' : '🇺🇸';
+        document.querySelectorAll('[data-i18n]').forEach(function (el) {
+          var key = el.getAttribute('data-i18n');
+          if (translations[lang][key]) el.textContent = translations[lang][key];
+        });
+      });
+    }());
+  </script>
 </body>
 </html>

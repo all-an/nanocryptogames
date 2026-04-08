@@ -5,6 +5,7 @@
   <title>Nano Crypto Games — Free Play</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/wallet/wallet.css">
 </head>
 <body>
   <div class="welcome">
@@ -20,7 +21,7 @@
       <div class="welcome-card">
         <div class="welcome-card-icon">🎮</div>
         <h2>How to play</h2>
-        <p>No deposit needed — just bring a Nano wallet address. Don't have one? Create a free wallet at <a href="https://nault.cc" target="_blank" rel="noopener" style="border:1px solid #4a90d9;border-radius:4px;padding:1px 6px;background:linear-gradient(135deg,#4a90d9,#a64ad9);color:#fff;font-weight:600;text-decoration:none;box-shadow:0 0 8px rgba(74,144,217,0.6);">nault.cc</a>.</p>
+        <p>No deposit needed — just bring a Nano wallet address. Don't have one? Create a free wallet at <a href="https://nault.cc" target="_blank" rel="noopener" style="border:1px solid #4a90d9;border-radius:4px;padding:1px 6px;background:linear-gradient(135deg,#4a90d9,#a64ad9);color:#fff;font-weight:600;text-decoration:none;box-shadow:0 0 8px rgba(74,144,217,0.6);">nault.cc</a> or <button data-action="create-wallet" type="button" style="border:1px solid #7a3aaa;border-radius:4px;padding:1px 6px;background:linear-gradient(135deg,#4a2a7a,#7a3aaa);color:#fff;font-weight:600;cursor:pointer;box-shadow:0 0 8px rgba(120,60,200,0.6);font-size:inherit;">Simple Wallet</button>.</p>
         <p style="margin-top:8px;">WASD or click to move, shoot enemies, heal teammates. Kill an enemy and earn <strong>0.00001 XNO</strong>. Heal an incapacitated teammate and earn <strong>0.00001 XNO</strong> instantly on-chain.</p>
       </div>
 
@@ -51,5 +52,6 @@
       <a href="/faucet/lobby" class="welcome-play-btn welcome-play-btn--sm">Enter Lobby</a>
     </footer>
   </div>
+  <script src="/static/wallet/wallet.js"></script>
 </body>
 </html>
