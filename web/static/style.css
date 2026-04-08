@@ -1271,6 +1271,39 @@ canvas {
 .welcome-title {
   font-size: 3rem;
   letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.welcome-title-logo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+
+.welcome-title-controller {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 5.5rem;
+  line-height: 1;
+  z-index: 1;
+}
+
+.welcome-title-logo img {
+  display: block;
+  border-radius: 50%;
+  position: relative;
+  z-index: 2;
 }
 
 .welcome-tagline {

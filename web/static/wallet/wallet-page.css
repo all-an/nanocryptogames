@@ -1,0 +1,265 @@
+/* wallet-page.css — styles for the /wallet page */
+
+.wp-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid #1a0f30;
+  background: #07050f;
+}
+
+.wp-nav-back {
+  color: #8a7aaa;
+  text-decoration: none;
+  font-size: 0.88rem;
+  transition: color 0.15s;
+}
+
+.wp-nav-back:hover { color: #d4b8ff; }
+
+.wp-nav-title {
+  color: #c0a0e8;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+/* ── Container ── */
+
+.wp-container {
+  max-width: 520px;
+  margin: 32px auto;
+  padding: 0 16px 48px;
+}
+
+.wp-loading,
+.wp-no-wallet {
+  text-align: center;
+  color: #8a7aaa;
+  margin-top: 64px;
+  font-size: 0.95rem;
+}
+
+.wp-no-wallet a { color: #b890f0; }
+
+/* ── Cards ── */
+
+.wp-card {
+  background: #0a0715;
+  border: 1px solid #251545;
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.5);
+}
+
+.wp-card-label {
+  font-size: 0.70rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #7a6a98;
+  margin-bottom: 10px;
+}
+
+.wp-card-hint {
+  font-size: 0.86rem;
+  color: #ffffff;
+  margin: 0 0 14px;
+  line-height: 1.6;
+}
+
+/* ── Address ── */
+
+.wp-address-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wp-address {
+  flex: 1;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.74rem;
+  color: #ffffff;
+  word-break: break-all;
+  line-height: 1.6;
+  user-select: all;
+}
+
+/* ── Balance ── */
+
+.wp-balance-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.wp-balance {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #f0e0ff;
+}
+
+.wp-balance-unit {
+  font-size: 0.9rem;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.wp-pending {
+  font-size: 0.82rem;
+  color: #f5b830;
+  margin-top: 6px;
+}
+
+/* ── Buttons ── */
+
+.wp-icon-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid #2e1a52;
+  border-radius: 6px;
+  padding: 5px 7px;
+  cursor: pointer;
+  color: #8a6ab8;
+  display: flex;
+  align-items: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.wp-icon-btn:hover {
+  border-color: #7a4ac8;
+  color: #d4b8ff;
+}
+
+.wp-btn {
+  width: 100%;
+  padding: 11px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-top: 4px;
+}
+
+.wp-btn--primary {
+  background: #3d1a72;
+  border: 1.5px solid #7a40c8;
+  color: #f0e0ff;
+  margin-top: 16px;
+}
+
+.wp-btn--primary:hover    { background: #4e2488; }
+.wp-btn--primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.wp-btn--secondary {
+  background: #0c1828;
+  border: 1.5px solid #2a5070;
+  color: #a0c8e8;
+}
+
+.wp-btn--secondary:hover    { background: #122030; }
+.wp-btn--secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Form ── */
+
+.wp-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #ffffff;
+  margin: 14px 0 5px;
+  letter-spacing: 0.04em;
+}
+
+.wp-input {
+  width: 100%;
+  background: #0d0920;
+  border: 1.5px solid #5a3a9a;
+  border-radius: 7px;
+  padding: 10px 14px;
+  color: #ffffff;
+  font-size: 0.88rem;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: 0 0 0 0 transparent;
+}
+
+.wp-input:focus {
+  outline: none;
+  border-color: #9a60e8;
+  box-shadow: 0 0 0 3px rgba(140, 80, 220, 0.2);
+}
+
+.wp-input::placeholder { color: #4a3a6a; }
+
+/* ── QR code modal ── */
+
+.wp-qr-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.80);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: wp-fade-in 0.18s ease;
+}
+
+@keyframes wp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.wp-qr-modal {
+  background: #0a0715;
+  border: 1px solid #2e1a52;
+  border-radius: 14px;
+  padding: 28px 24px 22px;
+  max-width: 300px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(120,60,200,0.2);
+  animation: wp-slide-up 0.2s ease;
+}
+
+@keyframes wp-slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.wp-qr-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f0e0ff;
+  margin: 0 0 18px;
+}
+
+.wp-qr-img {
+  border-radius: 10px;
+  display: block;
+  margin: 0 auto 16px;
+}
+
+.wp-qr-address {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.68rem;
+  color: #7a6a98;
+  word-break: break-all;
+  margin: 0 0 20px;
+  line-height: 1.55;
+}
+
+/* ── Status messages ── */
+
+.wp-msg {
+  font-size: 0.82rem;
+  margin-top: 10px;
+  min-height: 18px;
+  line-height: 1.5;
+}
+
+.wp-msg--ok    { color: #5ad688; }
+.wp-msg--error { color: #ff6b6b; }

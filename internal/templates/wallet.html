@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nano Simple Wallet</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/wallet/wallet.css">
+  <link rel="stylesheet" href="/static/wallet/wallet-page.css">
+</head>
+<body>
+  <div class="wp-nav">
+    <a href="/" class="wp-nav-back">← Back</a>
+    <span class="wp-nav-title">Nano Simple Wallet</span>
+  </div>
+
+  <div class="wp-container" id="wp-app">
+
+    <!-- shown while reading sessionStorage -->
+    <div id="wp-loading" class="wp-loading">Loading wallet…</div>
+
+    <!-- shown if no seed in sessionStorage -->
+    <div id="wp-no-wallet" class="wp-no-wallet" style="display:none;">
+      <p>No wallet found. <a href="/">Create or import one</a> from the home page.</p>
+    </div>
+
+    <!-- main wallet UI -->
+    <div id="wp-main" style="display:none;">
+
+      <!-- Address card -->
+      <div class="wp-card">
+        <div class="wp-card-label">Your Address</div>
+        <div class="wp-address-row">
+          <span class="wp-address" id="wp-address"></span>
+          <button class="wp-icon-btn" id="wp-copy-addr" title="Copy address" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+          <button class="wp-icon-btn" id="wp-qr-btn" title="Show QR code" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/><rect x="18" y="18" width="3" height="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Balance card -->
+      <div class="wp-card">
+        <div class="wp-card-label">Balance</div>
+        <div class="wp-balance-row">
+          <span class="wp-balance" id="wp-balance">—</span>
+          <span class="wp-balance-unit">XNO</span>
+          <button class="wp-icon-btn" id="wp-refresh-btn" title="Refresh balance" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+        <div class="wp-pending" id="wp-pending" style="display:none;"></div>
+      </div>
+
+      <!-- Receive card -->
+      <div class="wp-card">
+        <div class="wp-card-label">Receive</div>
+        <p class="wp-card-hint">Share your address above to receive XNO. Click below to confirm any incoming transactions.</p>
+        <button class="wp-btn wp-btn--secondary" id="wp-receive-btn" type="button">Check for incoming</button>
+        <div class="wp-msg" id="wp-receive-msg"></div>
+      </div>
+
+      <!-- Send card -->
+      <div class="wp-card">
+        <div class="wp-card-label">Send</div>
+        <form id="wp-send-form" autocomplete="off">
+          <label class="wp-label" for="wp-send-to">To address</label>
+          <input class="wp-input" id="wp-send-to" type="text" placeholder="nano_1abc…" spellcheck="false" required>
+          <label class="wp-label" for="wp-send-amount">Amount (XNO)</label>
+          <input class="wp-input" id="wp-send-amount" type="number" step="any" min="0" placeholder="0.001" required>
+          <button class="wp-btn wp-btn--primary" type="submit" id="wp-send-btn">Send</button>
+        </form>
+        <div class="wp-msg" id="wp-send-msg"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/static/wallet/wallet-page.js"></script>
+</body>
+</html>

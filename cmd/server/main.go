@@ -151,7 +151,15 @@ func main() {
 		http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
 	mux.Handle("GET /", handler.NewLandingHandler(tmpl, database, faucetAddr))
+
+	// ── Simple wallet ─────────────────────────────────────────────────────────
+	walletAPI := handler.NewWalletAPIHandler(tmpl, rpcClient)
 	mux.Handle("POST /wallet/create", handler.NewWalletHandler())
+	mux.Handle("GET /wallet", walletAPI.Page())
+	mux.Handle("POST /wallet/import", walletAPI.Import())
+	mux.Handle("POST /wallet/balance", walletAPI.Balance())
+	mux.Handle("POST /wallet/send", walletAPI.Send())
+	mux.Handle("POST /wallet/receive", walletAPI.Receive())
 	mux.Handle("GET /docs", handler.NewDocsHandler(tmpl))
 	mux.Handle("GET /docs/code-flow/shooter", handler.NewShooterCodeFlowHandler(tmpl))
 
