@@ -373,7 +373,7 @@ func (h *FaucetWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Log session to DB (best effort).
 	if h.db != nil {
-		if err := h.db.LogSession(r.Context(), "", "", roomID, p.Team, p.RemoteAddr, p.Nickname); err != nil {
+		if err := h.db.LogSession(r.Context(), "", "", roomID, p.Team, p.Nickname); err != nil {
 			log.Printf("faucet session_log: %v", err)
 		}
 	}
