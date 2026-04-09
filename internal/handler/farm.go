@@ -282,6 +282,19 @@ func (h *FarmHandler) LoginPage() http.HandlerFunc {
 	}
 }
 
+// RegisterPage renders the account creation page with wallet-choice options (GET /farm/register).
+func (h *FarmHandler) RegisterPage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if h.session(r) != nil {
+			http.Redirect(w, r, "/farm/game", http.StatusFound)
+			return
+		}
+		h.tmpl.ExecuteTemplate(w, "farm_register.html", map[string]string{
+			"Error": r.URL.Query().Get("error"),
+		})
+	}
+}
+
 // Register handles POST /farm/register — create a new account and session.
 func (h *FarmHandler) Register() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -323,16 +336,26 @@ func (h *FarmHandler) Register() http.HandlerFunc {
 			return
 		}
 
-		wallet, err := nano.DeriveWallet(h.masterSeed, uint32(idx))
-		if err != nil {
-			log.Printf("farm register: derive wallet: %v", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
+		// If the player supplied their own Nano address (imported wallet), use it
+		// directly. Otherwise derive a server-managed wallet from the master seed.
+		nanoAddress := strings.TrimSpace(r.FormValue("nano_address"))
+		if nanoAddress != "" && (!strings.HasPrefix(nanoAddress, "nano_") || len(nanoAddress) < 60) {
+			http.Redirect(w, r, "/farm?error=Invalid+Nano+address", http.StatusSeeOther)
 			return
+		}
+		if nanoAddress == "" {
+			wallet, err := nano.DeriveWallet(h.masterSeed, uint32(idx))
+			if err != nil {
+				log.Printf("farm register: derive wallet: %v", err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			nanoAddress = wallet.Address
 		}
 
 		var accountID string
 		if h.db != nil {
-			acc, err := h.db.CreateFarmAccount(ctx, username, string(hash), email, idx, wallet.Address)
+			acc, err := h.db.CreateFarmAccount(ctx, username, string(hash), email, idx, nanoAddress)
 			if err != nil {
 				log.Printf("farm register: create account: %v", err)
 				http.Redirect(w, r, "/farm?error=Username+or+email+already+taken", http.StatusSeeOther)
@@ -344,11 +367,11 @@ func (h *FarmHandler) Register() http.HandlerFunc {
 				http.Redirect(w, r, "/farm?error=Username+already+taken", http.StatusSeeOther)
 				return
 			}
-			acc := h.memAccts.create(username, string(hash), wallet.Address, email, idx)
+			acc := h.memAccts.create(username, string(hash), nanoAddress, email, idx)
 			accountID = acc.ID
 		}
 
-		log.Printf("farm: new account %q wallet %s", username, wallet.Address)
+		log.Printf("farm: new account %q wallet %s", username, nanoAddress)
 
 		token := newSessionToken()
 		if h.db != nil {
@@ -358,7 +381,7 @@ func (h *FarmHandler) Register() http.HandlerFunc {
 		} else {
 			h.memSess.set(token, &farmSessionData{
 				AccountID: accountID, Username: username,
-				NanoAddress: wallet.Address, Color: "", SeedIndex: idx,
+				NanoAddress: nanoAddress, Color: "", SeedIndex: idx,
 			})
 		}
 

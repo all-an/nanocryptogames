@@ -10,7 +10,7 @@
 <body>
   <div class="farm-auth-wrap">
     <header class="farm-auth-header">
-      <h1 class="farm-title">⚔️ Nano Faucet Farm</h1>
+      <h1 class="farm-title">🌾 Nano Faucet Farm</h1>
       <p class="farm-subtitle">A multiplayer role-playing world powered by Nano</p>
     </header>
 
@@ -35,27 +35,12 @@
       </div>
 
       <!-- Register -->
-      <div class="farm-card">
-        <h2>New Adventurer</h2>
-        <p class="farm-card-note">Creating an account generates a temporary Nano wallet for this game. You can withdraw your balance at any time.</p>
-        <form method="POST" action="/farm/register" class="farm-form">
-          <label>Username <span class="farm-hint">(3–20 chars, letters/digits/_ -)</span>
-            <input type="text" name="username" required autocomplete="username" maxlength="20" placeholder="HeroName">
-          </label>
-          <label>Password <span class="farm-hint">(min 6 chars)</span>
-            <input type="password" name="password" required autocomplete="new-password" minlength="6" placeholder="••••••">
-          </label>
-          <label>Email
-            <input type="email" name="email" required autocomplete="email" placeholder="you@example.com">
-          </label>
-          <button type="submit" class="farm-btn farm-btn--secondary">Create Character</button>
-        </form>
+      <div class="farm-card" style="text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <h2>New Farmer</h2>
+        <p class="farm-card-note">Create an account and choose how to manage your Nano wallet.</p>
+        <a href="/farm/register" class="farm-btn farm-btn--secondary" style="display:inline-block;text-align:center;">Create Farmer</a>
       </div>
 
-    </div>
-
-    <div class="farm-warning">
-      ⚠️ This is a <strong>temporary game wallet</strong>. Do not leave large amounts here — withdraw your Nano to a real wallet (e.g. <a href="https://nault.cc" target="_blank" rel="noopener">nault.cc</a>) after each session.
     </div>
 
     <footer class="farm-auth-footer">

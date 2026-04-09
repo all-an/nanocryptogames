@@ -177,6 +177,7 @@ func main() {
 	// ── Farm routes ────────────────────────────────────────────────────────────
 	farmHandler := handler.NewFarmHandler(tmpl, database, rpcClient, masterSeed)
 	mux.Handle("GET /farm", farmHandler.LoginPage())
+	mux.Handle("GET /farm/register", farmHandler.RegisterPage())
 	mux.Handle("POST /farm/register", farmHandler.Register())
 	mux.Handle("POST /farm/login", farmHandler.Login())
 	mux.Handle("POST /farm/logout", farmHandler.Logout())
@@ -235,22 +236,24 @@ func accessLogMiddleware(database *db.DB, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if database != nil && r.URL.Path == "/" {
 			ip := realIP(r)
-			id, err := database.LogAccess(r.Context(), r.URL.Path)
-			if err != nil {
-				log.Printf("access_log insert: %v", err)
-			} else if id != 0 {
-				go func() {
-					country := geoCountry(ip)
-					if country == "" {
-						return
-					}
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-					if err := database.SetAccessCountry(ctx, id, country); err != nil {
-						log.Printf("access_log country update: %v", err)
-					}
-				}()
-			}
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				id, err := database.LogAccess(ctx, r.URL.Path)
+				if err != nil {
+					log.Printf("access_log insert: %v", err)
+					return
+				}
+				country := geoCountry(ip)
+				if country == "" {
+					return
+				}
+				ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel2()
+				if err := database.SetAccessCountry(ctx2, id, country); err != nil {
+					log.Printf("access_log country update: %v", err)
+				}
+			}()
 		}
 		next.ServeHTTP(w, r)
 	})
