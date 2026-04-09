@@ -1,9 +1,9 @@
-// hub.go is the central registry of active RPG rooms.
-package rpg
+// hub.go is the central registry of active Farm rooms.
+package farm
 
 import "sync"
 
-// Hub manages the set of active RPG game rooms.
+// Hub manages the set of active Farm game rooms.
 type Hub struct {
 	mu    sync.Mutex
 	rooms map[string]*Room

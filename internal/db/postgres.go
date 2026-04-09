@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"sort"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -34,9 +33,18 @@ func Connect(ctx context.Context, url string) (*DB, error) {
 }
 
 // Migrate runs all SQL migration files in lexicographic order.
-// Each file is executed as a single statement block; IF NOT EXISTS guards make
-// the operation safe to re-run on every startup.
+// Already-applied migrations are skipped using the schema_migrations tracking table.
 func (db *DB) Migrate(ctx context.Context) error {
+	// Bootstrap the tracking table before anything else.
+	_, err := db.pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			name       TEXT        PRIMARY KEY,
+			applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		)`)
+	if err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
+	}
+
 	entries, err := fs.ReadDir(migrationsFS, "migrations")
 	if err != nil {
 		return fmt.Errorf("read migrations: %w", err)
@@ -47,12 +55,30 @@ func (db *DB) Migrate(ctx context.Context) error {
 	})
 
 	for _, entry := range entries {
-		sql, err := fs.ReadFile(migrationsFS, "migrations/"+entry.Name())
+		name := entry.Name()
+
+		var applied bool
+		err := db.pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE name = $1)`, name,
+		).Scan(&applied)
 		if err != nil {
-			return fmt.Errorf("read %s: %w", entry.Name(), err)
+			return fmt.Errorf("check %s: %w", name, err)
+		}
+		if applied {
+			continue
+		}
+
+		sql, err := fs.ReadFile(migrationsFS, "migrations/"+name)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", name, err)
 		}
 		if _, err := db.pool.Exec(ctx, string(sql)); err != nil {
-			return fmt.Errorf("exec %s: %w", entry.Name(), err)
+			return fmt.Errorf("exec %s: %w", name, err)
+		}
+		if _, err := db.pool.Exec(ctx,
+			`INSERT INTO schema_migrations (name) VALUES ($1)`, name,
+		); err != nil {
+			return fmt.Errorf("record %s: %w", name, err)
 		}
 	}
 	return nil
@@ -202,25 +228,15 @@ func (db *DB) FaucetPayoutsToday(ctx context.Context, ip string) (int, error) {
 	return count, err
 }
 
-// LogAccess records the first visit of the day from an IP on the landing page ("/").
-// Visits from the same IP on the same day are silently ignored (returns 0, nil).
-// Returns the new row's ID so the caller can later fill in the country.
-func (db *DB) LogAccess(ctx context.Context, ip, path string) (int64, error) {
+// LogAccess records a visit on the landing page ("/") in access_log and
+// increments the access_daily counter for today. Returns the new row's ID
+// so the caller can later fill in the country via SetAccessCountry.
+func (db *DB) LogAccess(ctx context.Context, path string) (int64, error) {
 	var id int64
 	err := db.pool.QueryRow(ctx,
-		`INSERT INTO access_log (ip, path)
-		 SELECT $1, $2
-		 WHERE NOT EXISTS (
-		   SELECT 1 FROM access_log
-		   WHERE ip = $1 AND accessed_at::date = CURRENT_DATE
-		 )
-		 RETURNING id`,
-		ip, path,
+		`INSERT INTO access_log (path) VALUES ($1) RETURNING id`,
+		path,
 	).Scan(&id)
-	if err == pgx.ErrNoRows {
-		// IP already logged today — not an error.
-		return 0, nil
-	}
 	if err != nil {
 		return 0, err
 	}

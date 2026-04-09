@@ -1,6 +1,6 @@
-// room.go implements one RPG game room: a 20×15 numbered grid with
+// room.go implements one Farm game room: a 20×15 numbered grid with
 // server-authoritative player movement and chat.
-package rpg
+package farm
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// GridW and GridH define the RPG grid dimensions.
+// GridW and GridH define the Farm grid dimensions.
 // 20 × 15 = 300 cells, numbered 1–300 left-to-right, top-to-bottom.
 const (
 	GridW = 20
@@ -43,7 +43,7 @@ type Input struct {
 	To       string // target username (for dm)
 }
 
-// Room manages the players and game state of one RPG room.
+// Room manages the players and game state of one Farm room.
 type Room struct {
 	ID       string
 	mu       sync.Mutex
@@ -287,7 +287,7 @@ func (r *Room) broadcastState() {
 		"players": snaps,
 	})
 	if err != nil {
-		log.Printf("rpg room [%s]: broadcast marshal: %v", r.ID, err)
+		log.Printf("farm room [%s]: broadcast marshal: %v", r.ID, err)
 		return
 	}
 	for _, p := range r.players {

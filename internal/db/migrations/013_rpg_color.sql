@@ -1,4 +1,4 @@
--- 013_rpg_color.sql: add player-chosen display color to rpg_accounts.
+-- 013_farm_color.sql: add player-chosen display color to farm_accounts.
 -- Empty string means "not yet chosen" — the server falls back to the palette.
 
-ALTER TABLE rpg_accounts ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '';
+ALTER TABLE farm_accounts ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '';

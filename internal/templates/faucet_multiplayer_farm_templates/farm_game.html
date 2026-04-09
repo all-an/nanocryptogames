@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Nano Farm — {{.Room}}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/faucet_multiplayer_farm_static/farm.css">
+</head>
+<body>
+  <div class="farm-game-layout">
+
+    <!-- Header -->
+    <header class="farm-game-header">
+      <span class="farm-player-name">⚔️ <strong>{{.Username}}</strong></span>
+      <button id="account-btn" class="farm-btn farm-btn--sm farm-btn--secondary">✎ Account</button>
+      <span class="farm-room-label">Grid <strong>{{.Room}}</strong></span>
+      <div class="farm-header-actions">
+        <button id="wallet-btn" class="farm-btn farm-btn--sm">Ӿ Wallet</button>
+        <form method="POST" action="/farm/logout" style="display:inline">
+          <button type="submit" class="farm-btn farm-btn--sm farm-btn--danger">Leave</button>
+        </form>
+      </div>
+    </header>
+
+    <div class="farm-main">
+
+      <!-- DM panel (left) -->
+      <aside class="farm-dm-side">
+        <div class="farm-dm-header">
+          <h3>Messages</h3>
+        </div>
+        <div class="farm-dm-list" id="dm-list">
+          <p class="farm-dm-empty" id="dm-empty">No messages yet</p>
+        </div>
+      </aside>
+
+      <!-- Game canvas -->
+      <div class="farm-canvas-wrap">
+        <canvas id="farm-canvas"
+          data-username="{{.Username}}"
+          data-room="{{.Room}}"
+          data-entry-x="{{.EntryX}}"
+          data-entry-y="{{.EntryY}}"
+          data-email="{{.Email}}"
+          data-color="{{.Color}}"
+          width="800" height="600"></canvas>
+        <p class="farm-controls-hint">Move: <kbd>W A S D</kbd> or arrow keys &nbsp;·&nbsp; Click an adjacent cell to move &nbsp;·&nbsp; Type in chat to talk</p>
+      </div>
+
+      <!-- Side panel -->
+      <aside class="farm-side">
+
+        <!-- Chat -->
+        <div class="farm-chat-box" id="chat-box"></div>
+        <form id="chat-form" class="farm-chat-form">
+          <input id="chat-input" type="text" placeholder="Say something…" maxlength="200" autocomplete="off">
+          <button type="submit" class="farm-btn farm-btn--sm">Send</button>
+        </form>
+
+        <!-- Players online -->
+        <div class="farm-online-panel">
+          <h3>Online</h3>
+          <ul id="online-list" class="farm-online-list"></ul>
+        </div>
+
+      </aside>
+    </div>
+
+  </div>
+
+  <!-- Wallet modal -->
+  <div id="wallet-modal" class="farm-modal hidden" role="dialog" aria-modal="true">
+    <div class="farm-modal-box">
+      <h2>Ӿ Game Wallet</h2>
+
+      <div class="farm-wallet-warning">
+        ⚠️ <strong>This is a temporary game wallet.</strong> Withdraw your Nano to a real wallet after each session. Do not leave large amounts here.
+      </div>
+
+      <div class="farm-wallet-address-label">Your game address:</div>
+      <div class="farm-wallet-address" id="wallet-address">{{.NanoAddress}}</div>
+      <button id="copy-address-btn" class="farm-btn farm-btn--sm">⧉ Copy</button>
+      <p id="copy-confirm" class="farm-copy-confirm hidden">Copied!</p>
+
+      <div class="farm-balance-row">
+        Balance: <span id="wallet-balance">…</span> XNO
+      </div>
+
+      <hr class="farm-divider">
+
+      <h3>Withdraw</h3>
+      <div class="farm-withdraw-form">
+        <input id="withdraw-address" type="text" placeholder="nano_1your…address" class="farm-input">
+        <div class="farm-withdraw-row">
+          <input id="withdraw-amount" type="text" placeholder="Leave empty to withdraw all" class="farm-input farm-input--sm">
+          <button id="withdraw-btn" class="farm-btn farm-btn--primary">Send</button>
+        </div>
+        <p id="withdraw-msg" class="farm-withdraw-msg"></p>
+      </div>
+
+      <button id="wallet-close" class="farm-btn farm-btn--secondary" style="margin-top:16px;width:100%;">Close</button>
+    </div>
+  </div>
+
+  <!-- Edit account modal -->
+  <div id="account-modal" class="farm-modal hidden" role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
+    <div class="farm-modal-box">
+      <h2 id="account-modal-title">✎ Edit Account</h2>
+      <label class="farm-account-label" for="account-username-input">Username <span class="farm-hint">(3–20 chars, letters/digits/_ -)</span></label>
+      <input id="account-username-input" type="text" class="farm-input" maxlength="20" autocomplete="username">
+      <label class="farm-account-label" for="account-email-input" style="margin-top:14px;">Email</label>
+      <input id="account-email-input" type="email" class="farm-input" placeholder="you@example.com" autocomplete="email">
+      <label class="farm-account-label" for="account-color-input" style="margin-top:14px;">Player color</label>
+      <div class="farm-color-row">
+        <input id="account-color-input" type="color" class="farm-color-picker">
+        <span id="account-color-preview" class="farm-color-preview"></span>
+      </div>
+      <p id="account-modal-msg" class="farm-withdraw-msg"></p>
+      <div class="farm-dm-modal-actions" style="margin-top:16px;">
+        <button id="account-modal-cancel" class="farm-btn farm-btn--secondary">Cancel</button>
+        <button id="account-modal-save" class="farm-btn farm-btn--primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DM compose modal -->
+  <div id="dm-modal" class="farm-modal hidden" role="dialog" aria-modal="true" aria-labelledby="dm-modal-title">
+    <div class="farm-modal-box">
+      <h2 id="dm-modal-title">✉ Message to <span id="dm-modal-to-name"></span></h2>
+      <textarea id="dm-modal-input" class="farm-input farm-dm-textarea" placeholder="Write a private message…" maxlength="200" rows="4"></textarea>
+      <p id="dm-modal-msg" class="farm-withdraw-msg"></p>
+      <div class="farm-dm-modal-actions">
+        <button id="dm-modal-cancel" class="farm-btn farm-btn--secondary">Cancel</button>
+        <button id="dm-modal-send" class="farm-btn farm-btn--primary">Send message</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/faucet_multiplayer_farm_static/farm.js" defer></script>
+</body>
+</html>

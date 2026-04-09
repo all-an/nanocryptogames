@@ -2,64 +2,64 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Nano RPG — Login</title>
+  <title>Nano Farm — Login</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/style.css">
-  <link rel="stylesheet" href="/static/faucet_multiplayer_rpg_static/rpg.css">
+  <link rel="stylesheet" href="/static/faucet_multiplayer_farm_static/farm.css">
 </head>
 <body>
-  <div class="rpg-auth-wrap">
-    <header class="rpg-auth-header">
-      <h1 class="rpg-title">⚔️ Nano Faucet RPG</h1>
-      <p class="rpg-subtitle">A multiplayer role-playing world powered by Nano</p>
+  <div class="farm-auth-wrap">
+    <header class="farm-auth-header">
+      <h1 class="farm-title">⚔️ Nano Faucet Farm</h1>
+      <p class="farm-subtitle">A multiplayer role-playing world powered by Nano</p>
     </header>
 
     {{if .Error}}
-    <div class="rpg-error">{{.Error}}</div>
+    <div class="farm-error">{{.Error}}</div>
     {{end}}
 
-    <div class="rpg-auth-cards">
+    <div class="farm-auth-cards">
 
       <!-- Login -->
-      <div class="rpg-card">
+      <div class="farm-card">
         <h2>Sign In</h2>
-        <form method="POST" action="/rpg/login" class="rpg-form">
+        <form method="POST" action="/farm/login" class="farm-form">
           <label>Username
             <input type="text" name="username" required autocomplete="username" maxlength="20" placeholder="YourName">
           </label>
           <label>Password
             <input type="password" name="password" required autocomplete="current-password" placeholder="••••••">
           </label>
-          <button type="submit" class="rpg-btn rpg-btn--primary">Enter World</button>
+          <button type="submit" class="farm-btn farm-btn--primary">Enter World</button>
         </form>
       </div>
 
       <!-- Register -->
-      <div class="rpg-card">
+      <div class="farm-card">
         <h2>New Adventurer</h2>
-        <p class="rpg-card-note">Creating an account generates a temporary Nano wallet for this game. You can withdraw your balance at any time.</p>
-        <form method="POST" action="/rpg/register" class="rpg-form">
-          <label>Username <span class="rpg-hint">(3–20 chars, letters/digits/_ -)</span>
+        <p class="farm-card-note">Creating an account generates a temporary Nano wallet for this game. You can withdraw your balance at any time.</p>
+        <form method="POST" action="/farm/register" class="farm-form">
+          <label>Username <span class="farm-hint">(3–20 chars, letters/digits/_ -)</span>
             <input type="text" name="username" required autocomplete="username" maxlength="20" placeholder="HeroName">
           </label>
-          <label>Password <span class="rpg-hint">(min 6 chars)</span>
+          <label>Password <span class="farm-hint">(min 6 chars)</span>
             <input type="password" name="password" required autocomplete="new-password" minlength="6" placeholder="••••••">
           </label>
           <label>Email
             <input type="email" name="email" required autocomplete="email" placeholder="you@example.com">
           </label>
-          <button type="submit" class="rpg-btn rpg-btn--secondary">Create Character</button>
+          <button type="submit" class="farm-btn farm-btn--secondary">Create Character</button>
         </form>
       </div>
 
     </div>
 
-    <div class="rpg-warning">
+    <div class="farm-warning">
       ⚠️ This is a <strong>temporary game wallet</strong>. Do not leave large amounts here — withdraw your Nano to a real wallet (e.g. <a href="https://nault.cc" target="_blank" rel="noopener">nault.cc</a>) after each session.
     </div>
 
-    <footer class="rpg-auth-footer">
-      <a href="/" class="rpg-back">← Back to games</a>
+    <footer class="farm-auth-footer">
+      <a href="/" class="farm-back">← Back to games</a>
     </footer>
   </div>
 </body>

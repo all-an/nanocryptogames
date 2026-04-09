@@ -1,5 +1,5 @@
-// player.go defines per-player state held in memory during an RPG session.
-package rpg
+// player.go defines per-player state held in memory during an Farm session.
+package farm
 
 // colorPalette cycles through 8 distinct colors, assigned to players by join order.
 var colorPalette = []string{
@@ -7,7 +7,7 @@ var colorPalette = []string{
 	"#9B59B6", "#1ABC9C", "#E91E8C", "#F39C12",
 }
 
-// Player holds in-memory state for a single connected RPG player.
+// Player holds in-memory state for a single connected Farm player.
 type Player struct {
 	ID          string // random hex, unique per WebSocket connection
 	AccountID   string // persistent account ID (UUID or in-memory ID)

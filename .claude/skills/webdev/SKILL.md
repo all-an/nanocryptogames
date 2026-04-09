@@ -50,6 +50,6 @@ For Nano Crypto Games:
 - Static assets are served from `web/static/` at `/static/`.
 - The existing `style.css` establishes a dark-themed design system — new CSS should extend it via custom properties, not override it wholesale.
 - WebSocket messages use JSON; keep the protocol minimal and versioned in comments.
-- The faucet game uses Canvas for rendering — the RPG game follows the same pattern.
+- The faucet game uses Canvas for rendering — the Farm game follows the same pattern.
 - Forms use standard HTML form submission (POST) for auth; game interactions use WebSocket.
-- Cookies are `HttpOnly`, `SameSite=Lax`, scoped to `/rpg` for the RPG session.
+- Cookies are `HttpOnly`, `SameSite=Lax`, scoped to `/farm` for the Farm session.

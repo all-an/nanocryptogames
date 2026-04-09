@@ -1,4 +1,4 @@
-// rpg.go implements HTTP handlers for the Nano Faucet Multiplayer RPG.
+// farm.go implements HTTP handlers for the Nano Faucet Multiplayer Farm.
 // Routes: login, register, logout, game page, WebSocket, balance, withdraw.
 package handler
 
@@ -20,24 +20,24 @@ import (
 
 	"github.com/allanabrahao/nanomultiplayer/internal/db"
 	"github.com/allanabrahao/nanomultiplayer/internal/games/shooter"
-	rpggame "github.com/allanabrahao/nanomultiplayer/internal/games/rpg"
+	farmgame "github.com/allanabrahao/nanomultiplayer/internal/games/farm"
 	"github.com/allanabrahao/nanomultiplayer/internal/nano"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/bcrypt"
 )
 
 const (
-	rpgCookieName   = "rpg_session"
-	rpgCookieMaxAge = 7 * 24 * 60 * 60 // 7 days in seconds
-	rpgMinUsername  = 3
-	rpgMaxUsername  = 20
-	rpgMinPassword  = 6
-	rpgDefaultRoom  = "0,0"
+	farmCookieName   = "farm_session"
+	farmCookieMaxAge = 7 * 24 * 60 * 60 // 7 days in seconds
+	farmMinUsername  = 3
+	farmMaxUsername  = 20
+	farmMinPassword  = 6
+	farmDefaultRoom  = "0,0"
 )
 
 // ── in-memory fallback stores (used when DATABASE_URL is not set) ─────────────
 
-type rpgMemAccount struct {
+type farmMemAccount struct {
 	ID           string
 	Username     string
 	PasswordHash string
@@ -47,23 +47,23 @@ type rpgMemAccount struct {
 	NanoAddress  string
 }
 
-type rpgMemAccounts struct {
+type farmMemAccounts struct {
 	mu      sync.RWMutex
-	byName  map[string]*rpgMemAccount
-	byID    map[string]*rpgMemAccount
+	byName  map[string]*farmMemAccount
+	byID    map[string]*farmMemAccount
 	nextIdx int
 }
 
-func newRPGMemAccounts() *rpgMemAccounts {
-	return &rpgMemAccounts{
-		byName: make(map[string]*rpgMemAccount),
-		byID:   make(map[string]*rpgMemAccount),
+func newFarmMemAccounts() *farmMemAccounts {
+	return &farmMemAccounts{
+		byName: make(map[string]*farmMemAccount),
+		byID:   make(map[string]*farmMemAccount),
 	}
 }
 
-func (m *rpgMemAccounts) create(username, passwordHash, nanoAddress string, email *string, seedIndex int) *rpgMemAccount {
+func (m *farmMemAccounts) create(username, passwordHash, nanoAddress string, email *string, seedIndex int) *farmMemAccount {
 	id := newID()
-	acc := &rpgMemAccount{
+	acc := &farmMemAccount{
 		ID: id, Username: username,
 		PasswordHash: passwordHash, Email: email, Color: "", SeedIndex: seedIndex, NanoAddress: nanoAddress,
 	}
@@ -74,21 +74,21 @@ func (m *rpgMemAccounts) create(username, passwordHash, nanoAddress string, emai
 	return acc
 }
 
-func (m *rpgMemAccounts) getByName(username string) (*rpgMemAccount, bool) {
+func (m *farmMemAccounts) getByName(username string) (*farmMemAccount, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	acc, ok := m.byName[username]
 	return acc, ok
 }
 
-func (m *rpgMemAccounts) getByID(id string) (*rpgMemAccount, bool) {
+func (m *farmMemAccounts) getByID(id string) (*farmMemAccount, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	acc, ok := m.byID[id]
 	return acc, ok
 }
 
-func (m *rpgMemAccounts) updateAccount(id, username string, email *string, color string) {
+func (m *farmMemAccounts) updateAccount(id, username string, email *string, color string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	acc, ok := m.byID[id]
@@ -105,7 +105,7 @@ func (m *rpgMemAccounts) updateAccount(id, username string, email *string, color
 	acc.Color = color
 }
 
-func (m *rpgMemAccounts) nextIndex() int {
+func (m *farmMemAccounts) nextIndex() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	idx := m.nextIdx
@@ -113,7 +113,7 @@ func (m *rpgMemAccounts) nextIndex() int {
 	return idx
 }
 
-type rpgSessionData struct {
+type farmSessionData struct {
 	AccountID   string
 	Username    string
 	NanoAddress string
@@ -122,29 +122,29 @@ type rpgSessionData struct {
 	SeedIndex   int
 }
 
-type rpgMemSessions struct {
+type farmMemSessions struct {
 	mu       sync.RWMutex
-	sessions map[string]*rpgSessionData
+	sessions map[string]*farmSessionData
 }
 
-func newRPGMemSessions() *rpgMemSessions {
-	return &rpgMemSessions{sessions: make(map[string]*rpgSessionData)}
+func newFarmMemSessions() *farmMemSessions {
+	return &farmMemSessions{sessions: make(map[string]*farmSessionData)}
 }
 
-func (s *rpgMemSessions) set(token string, d *rpgSessionData) {
+func (s *farmMemSessions) set(token string, d *farmSessionData) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sessions[token] = d
 }
 
-func (s *rpgMemSessions) get(token string) (*rpgSessionData, bool) {
+func (s *farmMemSessions) get(token string) (*farmSessionData, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	d, ok := s.sessions[token]
 	return d, ok
 }
 
-func (s *rpgMemSessions) delete(token string) {
+func (s *farmMemSessions) delete(token string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.sessions, token)
@@ -152,35 +152,35 @@ func (s *rpgMemSessions) delete(token string) {
 
 // ── main handler ──────────────────────────────────────────────────────────────
 
-// RPGHandler holds shared state for all Nano Faucet Multiplayer RPG endpoints.
-type RPGHandler struct {
+// FarmHandler holds shared state for all Nano Faucet Multiplayer Farm endpoints.
+type FarmHandler struct {
 	tmpl       *template.Template
 	db         *db.DB
 	rpc        *nano.Client
 	masterSeed []byte
-	hub        *rpggame.Hub
-	memAccts   *rpgMemAccounts
-	memSess    *rpgMemSessions
+	hub        *farmgame.Hub
+	memAccts   *farmMemAccounts
+	memSess    *farmMemSessions
 }
 
-// NewRPGHandler wires up all RPG handler dependencies.
-func NewRPGHandler(tmpl *template.Template, database *db.DB, rpc *nano.Client, masterSeed []byte) *RPGHandler {
-	return &RPGHandler{
+// NewFarmHandler wires up all Farm handler dependencies.
+func NewFarmHandler(tmpl *template.Template, database *db.DB, rpc *nano.Client, masterSeed []byte) *FarmHandler {
+	return &FarmHandler{
 		tmpl:       tmpl,
 		db:         database,
 		rpc:        rpc,
 		masterSeed: masterSeed,
-		hub:        rpggame.NewHub(),
-		memAccts:   newRPGMemAccounts(),
-		memSess:    newRPGMemSessions(),
+		hub:        farmgame.NewHub(),
+		memAccts:   newFarmMemAccounts(),
+		memSess:    newFarmMemSessions(),
 	}
 }
 
 // ── session helpers ───────────────────────────────────────────────────────────
 
 // session returns the authenticated session data for the request, or nil.
-func (h *RPGHandler) session(r *http.Request) *rpgSessionData {
-	cookie, err := r.Cookie(rpgCookieName)
+func (h *FarmHandler) session(r *http.Request) *farmSessionData {
+	cookie, err := r.Cookie(farmCookieName)
 	if err != nil || cookie.Value == "" {
 		return nil
 	}
@@ -189,15 +189,15 @@ func (h *RPGHandler) session(r *http.Request) *rpgSessionData {
 	if h.db != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		accountID, err := h.db.GetRPGSession(ctx, token)
+		accountID, err := h.db.GetFarmSession(ctx, token)
 		if err != nil {
 			return nil
 		}
-		acc, err := h.db.GetRPGAccountByID(ctx, accountID)
+		acc, err := h.db.GetFarmAccountByID(ctx, accountID)
 		if err != nil {
 			return nil
 		}
-		sess := &rpgSessionData{
+		sess := &farmSessionData{
 			AccountID: acc.ID, Username: acc.Username,
 			NanoAddress: acc.NanoAddress, Color: acc.Color, SeedIndex: acc.SeedIndex,
 		}
@@ -221,29 +221,29 @@ func newSessionToken() string {
 	return hex.EncodeToString(b)
 }
 
-func setRPGCookie(w http.ResponseWriter, token string) {
+func setFarmCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     rpgCookieName,
+		Name:     farmCookieName,
 		Value:    token,
-		Path:     "/rpg",
-		MaxAge:   rpgCookieMaxAge,
+		Path:     "/farm",
+		MaxAge:   farmCookieMaxAge,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func clearRPGCookie(w http.ResponseWriter) {
+func clearFarmCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     rpgCookieName,
+		Name:     farmCookieName,
 		Value:    "",
-		Path:     "/rpg",
+		Path:     "/farm",
 		MaxAge:   -1,
 		HttpOnly: true,
 	})
 }
 
 // nextSeedIndex gets the next HD wallet index from DB or the in-memory counter.
-func (h *RPGHandler) nextSeedIndex(ctx context.Context) (int, error) {
+func (h *FarmHandler) nextSeedIndex(ctx context.Context) (int, error) {
 	if h.db != nil {
 		return h.db.NextSeedIndex(ctx)
 	}
@@ -253,11 +253,11 @@ func (h *RPGHandler) nextSeedIndex(ctx context.Context) (int, error) {
 // validateUsername checks length and allowed characters. Returns an error message or "".
 func validateUsername(u string) string {
 	runes := []rune(strings.TrimSpace(u))
-	if len(runes) < rpgMinUsername {
-		return fmt.Sprintf("Username must be at least %d characters", rpgMinUsername)
+	if len(runes) < farmMinUsername {
+		return fmt.Sprintf("Username must be at least %d characters", farmMinUsername)
 	}
-	if len(runes) > rpgMaxUsername {
-		return fmt.Sprintf("Username must be at most %d characters", rpgMaxUsername)
+	if len(runes) > farmMaxUsername {
+		return fmt.Sprintf("Username must be at most %d characters", farmMaxUsername)
 	}
 	for _, ch := range runes {
 		if !unicode.IsLetter(ch) && !unicode.IsDigit(ch) && ch != '_' && ch != '-' {
@@ -269,21 +269,21 @@ func validateUsername(u string) string {
 
 // ── HTTP handlers ─────────────────────────────────────────────────────────────
 
-// LoginPage renders the combined login/register page (GET /rpg).
-func (h *RPGHandler) LoginPage() http.HandlerFunc {
+// LoginPage renders the combined login/register page (GET /farm).
+func (h *FarmHandler) LoginPage() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if h.session(r) != nil {
-			http.Redirect(w, r, "/rpg/game", http.StatusFound)
+			http.Redirect(w, r, "/farm/game", http.StatusFound)
 			return
 		}
-		h.tmpl.ExecuteTemplate(w, "rpg_login.html", map[string]string{
+		h.tmpl.ExecuteTemplate(w, "farm_login.html", map[string]string{
 			"Error": r.URL.Query().Get("error"),
 		})
 	}
 }
 
-// Register handles POST /rpg/register — create a new account and session.
-func (h *RPGHandler) Register() http.HandlerFunc {
+// Register handles POST /farm/register — create a new account and session.
+func (h *FarmHandler) Register() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username := strings.TrimSpace(r.FormValue("username"))
 		password := r.FormValue("password")
@@ -293,24 +293,24 @@ func (h *RPGHandler) Register() http.HandlerFunc {
 		var email *string
 		if emailRaw != "" {
 			if !strings.Contains(emailRaw, "@") {
-				http.Redirect(w, r, "/rpg?error=Invalid+email+address", http.StatusSeeOther)
+				http.Redirect(w, r, "/farm?error=Invalid+email+address", http.StatusSeeOther)
 				return
 			}
 			email = &emailRaw
 		}
 
 		if msg := validateUsername(username); msg != "" {
-			http.Redirect(w, r, "/rpg?error="+urlEncode(msg), http.StatusSeeOther)
+			http.Redirect(w, r, "/farm?error="+urlEncode(msg), http.StatusSeeOther)
 			return
 		}
-		if len(password) < rpgMinPassword {
-			http.Redirect(w, r, fmt.Sprintf("/rpg?error=Password+must+be+at+least+%d+characters", rpgMinPassword), http.StatusSeeOther)
+		if len(password) < farmMinPassword {
+			http.Redirect(w, r, fmt.Sprintf("/farm?error=Password+must+be+at+least+%d+characters", farmMinPassword), http.StatusSeeOther)
 			return
 		}
 
 		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
-			log.Printf("rpg register: bcrypt: %v", err)
+			log.Printf("farm register: bcrypt: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -318,57 +318,57 @@ func (h *RPGHandler) Register() http.HandlerFunc {
 		ctx := r.Context()
 		idx, err := h.nextSeedIndex(ctx)
 		if err != nil {
-			log.Printf("rpg register: seed index: %v", err)
+			log.Printf("farm register: seed index: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 
 		wallet, err := nano.DeriveWallet(h.masterSeed, uint32(idx))
 		if err != nil {
-			log.Printf("rpg register: derive wallet: %v", err)
+			log.Printf("farm register: derive wallet: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 
 		var accountID string
 		if h.db != nil {
-			acc, err := h.db.CreateRPGAccount(ctx, username, string(hash), email, idx, wallet.Address)
+			acc, err := h.db.CreateFarmAccount(ctx, username, string(hash), email, idx, wallet.Address)
 			if err != nil {
-				log.Printf("rpg register: create account: %v", err)
-				http.Redirect(w, r, "/rpg?error=Username+or+email+already+taken", http.StatusSeeOther)
+				log.Printf("farm register: create account: %v", err)
+				http.Redirect(w, r, "/farm?error=Username+or+email+already+taken", http.StatusSeeOther)
 				return
 			}
 			accountID = acc.ID
 		} else {
 			if _, exists := h.memAccts.getByName(username); exists {
-				http.Redirect(w, r, "/rpg?error=Username+already+taken", http.StatusSeeOther)
+				http.Redirect(w, r, "/farm?error=Username+already+taken", http.StatusSeeOther)
 				return
 			}
 			acc := h.memAccts.create(username, string(hash), wallet.Address, email, idx)
 			accountID = acc.ID
 		}
 
-		log.Printf("rpg: new account %q wallet %s", username, wallet.Address)
+		log.Printf("farm: new account %q wallet %s", username, wallet.Address)
 
 		token := newSessionToken()
 		if h.db != nil {
-			if err := h.db.CreateRPGSession(ctx, token, accountID); err != nil {
-				log.Printf("rpg register: create session: %v", err)
+			if err := h.db.CreateFarmSession(ctx, token, accountID); err != nil {
+				log.Printf("farm register: create session: %v", err)
 			}
 		} else {
-			h.memSess.set(token, &rpgSessionData{
+			h.memSess.set(token, &farmSessionData{
 				AccountID: accountID, Username: username,
 				NanoAddress: wallet.Address, Color: "", SeedIndex: idx,
 			})
 		}
 
-		setRPGCookie(w, token)
-		http.Redirect(w, r, "/rpg/game", http.StatusSeeOther)
+		setFarmCookie(w, token)
+		http.Redirect(w, r, "/farm/game", http.StatusSeeOther)
 	}
 }
 
-// Login handles POST /rpg/login — verify credentials and create a session.
-func (h *RPGHandler) Login() http.HandlerFunc {
+// Login handles POST /farm/login — verify credentials and create a session.
+func (h *FarmHandler) Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username := strings.TrimSpace(r.FormValue("username"))
 		password := r.FormValue("password")
@@ -378,9 +378,9 @@ func (h *RPGHandler) Login() http.HandlerFunc {
 		var seedIndex int
 
 		if h.db != nil {
-			acc, err := h.db.GetRPGAccountByUsername(ctx, username)
+			acc, err := h.db.GetFarmAccountByUsername(ctx, username)
 			if err != nil {
-				http.Redirect(w, r, "/rpg?error=Invalid+username+or+password", http.StatusSeeOther)
+				http.Redirect(w, r, "/farm?error=Invalid+username+or+password", http.StatusSeeOther)
 				return
 			}
 			accountID, passwordHash = acc.ID, acc.PasswordHash
@@ -388,7 +388,7 @@ func (h *RPGHandler) Login() http.HandlerFunc {
 		} else {
 			acc, ok := h.memAccts.getByName(username)
 			if !ok {
-				http.Redirect(w, r, "/rpg?error=Invalid+username+or+password", http.StatusSeeOther)
+				http.Redirect(w, r, "/farm?error=Invalid+username+or+password", http.StatusSeeOther)
 				return
 			}
 			accountID, passwordHash = acc.ID, acc.PasswordHash
@@ -396,59 +396,59 @@ func (h *RPGHandler) Login() http.HandlerFunc {
 		}
 
 		if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
-			http.Redirect(w, r, "/rpg?error=Invalid+username+or+password", http.StatusSeeOther)
+			http.Redirect(w, r, "/farm?error=Invalid+username+or+password", http.StatusSeeOther)
 			return
 		}
 
 		token := newSessionToken()
 		if h.db != nil {
-			if err := h.db.CreateRPGSession(ctx, token, accountID); err != nil {
-				log.Printf("rpg login: create session: %v", err)
+			if err := h.db.CreateFarmSession(ctx, token, accountID); err != nil {
+				log.Printf("farm login: create session: %v", err)
 			}
 		} else {
-			h.memSess.set(token, &rpgSessionData{
+			h.memSess.set(token, &farmSessionData{
 				AccountID: accountID, Username: username,
 				NanoAddress: nanoAddress, Color: color, SeedIndex: seedIndex,
 			})
 		}
 
-		setRPGCookie(w, token)
-		http.Redirect(w, r, "/rpg/game", http.StatusSeeOther)
+		setFarmCookie(w, token)
+		http.Redirect(w, r, "/farm/game", http.StatusSeeOther)
 	}
 }
 
-// Logout handles POST /rpg/logout — destroy the session and redirect to login.
-func (h *RPGHandler) Logout() http.HandlerFunc {
+// Logout handles POST /farm/logout — destroy the session and redirect to login.
+func (h *FarmHandler) Logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(rpgCookieName)
+		cookie, err := r.Cookie(farmCookieName)
 		if err == nil && cookie.Value != "" {
 			if h.db != nil {
 				ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 				defer cancel()
-				h.db.DeleteRPGSession(ctx, cookie.Value)
+				h.db.DeleteFarmSession(ctx, cookie.Value)
 			} else {
 				h.memSess.delete(cookie.Value)
 			}
 		}
-		clearRPGCookie(w)
-		http.Redirect(w, r, "/rpg", http.StatusSeeOther)
+		clearFarmCookie(w)
+		http.Redirect(w, r, "/farm", http.StatusSeeOther)
 	}
 }
 
-// GamePage renders the RPG game canvas (GET /rpg/game, requires auth).
-func (h *RPGHandler) GamePage() http.HandlerFunc {
+// GamePage renders the Farm game canvas (GET /farm/game, requires auth).
+func (h *FarmHandler) GamePage() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sess := h.session(r)
 		if sess == nil {
-			http.Redirect(w, r, "/rpg", http.StatusFound)
+			http.Redirect(w, r, "/farm", http.StatusFound)
 			return
 		}
 		room := r.URL.Query().Get("room")
 		if room == "" {
-			room = rpgDefaultRoom
+			room = farmDefaultRoom
 		}
 		ex, ey := parseEntryCoords(r)
-		h.tmpl.ExecuteTemplate(w, "rpg_game.html", map[string]any{
+		h.tmpl.ExecuteTemplate(w, "farm_game.html", map[string]any{
 			"Username":    sess.Username,
 			"NanoAddress": sess.NanoAddress,
 			"Email":       sess.Email,
@@ -460,8 +460,8 @@ func (h *RPGHandler) GamePage() http.HandlerFunc {
 	}
 }
 
-// WebSocket handles GET /rpg/ws — upgrades to WebSocket, joins a room, starts pumps.
-func (h *RPGHandler) WebSocket() http.HandlerFunc {
+// WebSocket handles GET /farm/ws — upgrades to WebSocket, joins a room, starts pumps.
+func (h *FarmHandler) WebSocket() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sess := h.session(r)
 		if sess == nil {
@@ -476,10 +476,10 @@ func (h *RPGHandler) WebSocket() http.HandlerFunc {
 
 		room := r.URL.Query().Get("room")
 		if room == "" {
-			room = rpgDefaultRoom
+			room = farmDefaultRoom
 		}
 
-		p := rpggame.NewPlayer(newID(), sess.AccountID, sess.Username, sess.NanoAddress, room, sess.Color, sess.SeedIndex)
+		p := farmgame.NewPlayer(newID(), sess.AccountID, sess.Username, sess.NanoAddress, room, sess.Color, sess.SeedIndex)
 		ex, ey := parseEntryCoords(r)
 		joinedRoom := h.hub.JoinRoom(room, p, ex, ey)
 
@@ -490,24 +490,24 @@ func (h *RPGHandler) WebSocket() http.HandlerFunc {
 			"nanoAddress": p.NanoAddress,
 			"color":       p.Color,
 			"room":        room,
-			"gridW":       rpggame.GridW,
-			"gridH":       rpggame.GridH,
+			"gridW":       farmgame.GridW,
+			"gridH":       farmgame.GridH,
 			"blocks":      joinedRoom.Blocks(),
 			"doors":       joinedRoom.Doors(),
 		})
 		p.Send(initMsg)
 
-		go rpgWritePump(conn, p)
-		rpgReadPump(conn, p, joinedRoom)
+		go farmWritePump(conn, p)
+		farmReadPump(conn, p, joinedRoom)
 
 		h.hub.LeaveRoom(room, p.ID)
 		p.Close()
-		log.Printf("rpg ws [%s/%s]: disconnected", room, sess.Username)
+		log.Printf("farm ws [%s/%s]: disconnected", room, sess.Username)
 	}
 }
 
-// Balance handles GET /rpg/api/balance — returns the player's game wallet balance as JSON.
-func (h *RPGHandler) Balance() http.HandlerFunc {
+// Balance handles GET /farm/api/balance — returns the player's game wallet balance as JSON.
+func (h *FarmHandler) Balance() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sess := h.session(r)
 		if sess == nil {
@@ -543,8 +543,8 @@ func (h *RPGHandler) Balance() http.HandlerFunc {
 	}
 }
 
-// Withdraw handles POST /rpg/withdraw — sends the player's game wallet balance to an address.
-func (h *RPGHandler) Withdraw() http.HandlerFunc {
+// Withdraw handles POST /farm/withdraw — sends the player's game wallet balance to an address.
+func (h *FarmHandler) Withdraw() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sess := h.session(r)
 		if sess == nil {
@@ -571,7 +571,7 @@ func (h *RPGHandler) Withdraw() http.HandlerFunc {
 
 		wallet, err := nano.DeriveWallet(h.masterSeed, uint32(sess.SeedIndex))
 		if err != nil {
-			log.Printf("rpg withdraw: derive wallet: %v", err)
+			log.Printf("farm withdraw: derive wallet: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -595,7 +595,7 @@ func (h *RPGHandler) Withdraw() http.HandlerFunc {
 
 		hash, err := nano.Send(ctx, h.rpc, wallet, req.ToAddress, amountRaw)
 		if err != nil {
-			log.Printf("rpg withdraw [%s]: %v", sess.Username, err)
+			log.Printf("farm withdraw [%s]: %v", sess.Username, err)
 			http.Error(w, "send failed: "+err.Error(), http.StatusBadGateway)
 			return
 		}
@@ -604,7 +604,7 @@ func (h *RPGHandler) Withdraw() http.HandlerFunc {
 		if raw == nil {
 			raw = new(big.Int)
 		}
-		log.Printf("rpg withdraw [%s]: %s raw → %s block %s", sess.Username, amountRaw, req.ToAddress, hash[:8])
+		log.Printf("farm withdraw [%s]: %s raw → %s block %s", sess.Username, amountRaw, req.ToAddress, hash[:8])
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
@@ -614,8 +614,8 @@ func (h *RPGHandler) Withdraw() http.HandlerFunc {
 	}
 }
 
-// UpdateAccount handles POST /rpg/account — updates the player's email address.
-func (h *RPGHandler) UpdateAccount() http.HandlerFunc {
+// UpdateAccount handles POST /farm/account — updates the player's email address.
+func (h *FarmHandler) UpdateAccount() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sess := h.session(r)
 		if sess == nil {
@@ -655,8 +655,8 @@ func (h *RPGHandler) UpdateAccount() http.HandlerFunc {
 		ctx := r.Context()
 
 		if h.db != nil {
-			if err := h.db.UpdateRPGAccount(ctx, sess.AccountID, newUsername, email, color); err != nil {
-				log.Printf("rpg update account [%s]: %v", sess.Username, err)
+			if err := h.db.UpdateFarmAccount(ctx, sess.AccountID, newUsername, email, color); err != nil {
+				log.Printf("farm update account [%s]: %v", sess.Username, err)
 				http.Error(w, "Username or email already taken", http.StatusConflict)
 				return
 			}
@@ -675,8 +675,8 @@ func (h *RPGHandler) UpdateAccount() http.HandlerFunc {
 
 // ── WebSocket pumps ───────────────────────────────────────────────────────────
 
-// rpgWritePump reads from the player's channel and writes to the WebSocket.
-func rpgWritePump(conn *websocket.Conn, p *rpggame.Player) {
+// farmWritePump reads from the player's channel and writes to the WebSocket.
+func farmWritePump(conn *websocket.Conn, p *farmgame.Player) {
 	defer conn.Close()
 	for msg := range p.Messages() {
 		if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
@@ -685,8 +685,8 @@ func rpgWritePump(conn *websocket.Conn, p *rpggame.Player) {
 	}
 }
 
-// rpgReadPump reads WebSocket messages and submits actions to the room.
-func rpgReadPump(conn *websocket.Conn, p *rpggame.Player, room *rpggame.Room) {
+// farmReadPump reads WebSocket messages and submits actions to the room.
+func farmReadPump(conn *websocket.Conn, p *farmgame.Player, room *farmgame.Room) {
 	defer conn.Close()
 	for {
 		_, msg, err := conn.ReadMessage()
@@ -705,7 +705,7 @@ func rpgReadPump(conn *websocket.Conn, p *rpggame.Player, room *rpggame.Room) {
 		}
 		switch raw.Action {
 		case "move", "chat", "dm", "color", "username":
-			room.Submit(rpggame.Input{
+			room.Submit(farmgame.Input{
 				PlayerID: p.ID,
 				Action:   raw.Action,
 				X:        raw.X,

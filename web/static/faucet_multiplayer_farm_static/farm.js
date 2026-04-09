@@ -1,4 +1,4 @@
-// rpg.js — Nano Faucet Multiplayer RPG client
+// farm.js — Nano Faucet Multiplayer Farm client
 'use strict';
 
 const GRID_W   = 20;
@@ -6,7 +6,7 @@ const GRID_H   = 15;
 const CELL_W   = 40;
 const CELL_H   = 40;
 
-const canvas   = document.getElementById('rpg-canvas');
+const canvas   = document.getElementById('farm-canvas');
 const ctx      = canvas.getContext('2d');
 let   username = canvas.dataset.username; // mutable — updated when player renames
 const room     = canvas.dataset.room;
@@ -31,7 +31,7 @@ let connected = false;
 
 function wsURL() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  let url = `${proto}://${location.host}/rpg/ws?room=${encodeURIComponent(room)}`;
+  let url = `${proto}://${location.host}/farm/ws?room=${encodeURIComponent(room)}`;
   if (entryX >= 0) url += `&ex=${entryX}`;
   if (entryY >= 0) url += `&ey=${entryY}`;
   return url;
@@ -412,7 +412,7 @@ function transitionRoom(nx, ny, curX, curY) {
   else if (nx >= GRID_W) { col++;  ex = 0;          ey = curY;       }
   else if (ny < 0)     { row--;  ex = curX;        ey = GRID_H - 1; }
   else                 { row++;  ex = curX;        ey = 0;          }
-  window.location.href = `/rpg/game?room=${col},${row}&ex=${ex}&ey=${ey}`;
+  window.location.href = `/farm/game?room=${col},${row}&ex=${ex}&ey=${ey}`;
 }
 
 document.addEventListener('keydown', (e) => {
@@ -488,17 +488,17 @@ chatForm.addEventListener('submit', (e) => {
 
 function appendChat(from, text) {
   const line = document.createElement('div');
-  line.className = 'rpg-chat-line rpg-chat-line--chat';
+  line.className = 'farm-chat-line farm-chat-line--chat';
   const color = (players[myID]?.username === from)
     ? myColor
     : (Object.values(players).find(p => p.username === from)?.color || '#a0c4ff');
-  line.innerHTML = `<span class="rpg-chat-from" style="color:${color}">${esc(from)}</span>: ${esc(text)}`;
+  line.innerHTML = `<span class="farm-chat-from" style="color:${color}">${esc(from)}</span>: ${esc(text)}`;
   appendLine(line);
 }
 
 function appendSystem(text) {
   const line = document.createElement('div');
-  line.className = 'rpg-chat-line rpg-chat-line--system';
+  line.className = 'farm-chat-line farm-chat-line--system';
   line.textContent = text;
   appendLine(line);
 }
@@ -525,8 +525,8 @@ function updateOnlineList() {
   for (const p of Object.values(players)) {
     const li = document.createElement('li');
     const isSelf = p.id === myID;
-    li.className = 'rpg-online-item' + (isSelf ? '' : ' rpg-online-item--clickable');
-    li.innerHTML = `<span class="rpg-online-dot" style="background:${p.color}"></span>${esc(p.username)}`;
+    li.className = 'farm-online-item' + (isSelf ? '' : ' farm-online-item--clickable');
+    li.innerHTML = `<span class="farm-online-dot" style="background:${p.color}"></span>${esc(p.username)}`;
     if (!isSelf) {
       li.title = `Message ${p.username}`;
       li.addEventListener('click', () => openDMModal(p.username));
@@ -567,7 +567,7 @@ copyBtn.addEventListener('click', () => {
 
 function fetchBalance() {
   walletBalance.textContent = '…';
-  fetch('/rpg/api/balance')
+  fetch('/farm/api/balance')
     .then(r => r.json())
     .then(d => { walletBalance.textContent = d.xno; })
     .catch(() => { walletBalance.textContent = 'error'; });
@@ -585,7 +585,7 @@ withdrawBtn.addEventListener('click', () => {
   withdrawMsg.textContent = 'Sending…';
   withdrawBtn.disabled = true;
 
-  fetch('/rpg/withdraw', {
+  fetch('/farm/withdraw', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ toAddress, amountRaw: amountRaw || '' }),
@@ -700,7 +700,7 @@ accountModalSave.addEventListener('click', () => {
   accountModalMsg.textContent = 'Saving…';
   accountModalSave.disabled = true;
 
-  fetch('/rpg/account', {
+  fetch('/farm/account', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: newUsername, email, color }),
@@ -719,7 +719,7 @@ accountModalSave.addEventListener('click', () => {
       username = d.username;
 
       // Update the header player name display.
-      const nameEl = document.querySelector('.rpg-player-name strong');
+      const nameEl = document.querySelector('.farm-player-name strong');
       if (nameEl) nameEl.textContent = d.username;
 
       // Update local player state and re-render immediately.
@@ -765,14 +765,14 @@ function appendDM(from, to, text) {
   const now    = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const card = document.createElement('div');
-  card.className = 'rpg-dm-card' + (isSent ? ' rpg-dm-card--sent' : '');
+  card.className = 'farm-dm-card' + (isSent ? ' farm-dm-card--sent' : '');
   card.title = `Reply to ${peer}`;
   card.innerHTML =
-    `<div class="rpg-dm-card-meta">` +
-      `<span class="rpg-dm-card-from" style="color:${color}">${esc(isSent ? '→ ' + to : from)}</span>` +
-      `<span class="rpg-dm-card-time">${now}</span>` +
+    `<div class="farm-dm-card-meta">` +
+      `<span class="farm-dm-card-from" style="color:${color}">${esc(isSent ? '→ ' + to : from)}</span>` +
+      `<span class="farm-dm-card-time">${now}</span>` +
     `</div>` +
-    `<div class="rpg-dm-card-text">${esc(text)}</div>`;
+    `<div class="farm-dm-card-text">${esc(text)}</div>`;
 
   card.addEventListener('click', () => openDMModal(peer));
   dmList.appendChild(card);

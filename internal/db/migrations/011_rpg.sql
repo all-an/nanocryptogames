@@ -1,6 +1,6 @@
--- 011_rpg.sql: Nano Faucet Multiplayer RPG — accounts and sessions.
+-- 011_farm.sql: Nano Faucet Multiplayer Farm — accounts and sessions.
 
-CREATE TABLE IF NOT EXISTS rpg_accounts (
+CREATE TABLE IF NOT EXISTS farm_accounts (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     username      TEXT        NOT NULL UNIQUE,
     password_hash TEXT        NOT NULL,
@@ -9,9 +9,9 @@ CREATE TABLE IF NOT EXISTS rpg_accounts (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS rpg_sessions (
+CREATE TABLE IF NOT EXISTS farm_sessions (
     token      TEXT        PRIMARY KEY,
-    account_id UUID        NOT NULL REFERENCES rpg_accounts(id) ON DELETE CASCADE,
+    account_id UUID        NOT NULL REFERENCES farm_accounts(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_seen  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

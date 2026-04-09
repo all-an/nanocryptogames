@@ -113,7 +113,7 @@ func main() {
 	// ── Templates ────────────────────────────────────────────────────────────
 	tmpl := template.Must(template.ParseGlob("internal/templates/*.html"))
 	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_shooter/*.html"))
-	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_multiplayer_rpg_templates/*.html"))
+	tmpl = template.Must(tmpl.ParseGlob("internal/templates/faucet_multiplayer_farm_templates/*.html"))
 	tmpl = template.Must(tmpl.ParseGlob("internal/templates/docs/*.html"))
 	tmpl = template.Must(tmpl.ParseGlob("internal/templates/docs/code-flow/*.html"))
 
@@ -174,17 +174,17 @@ func main() {
 	mux.Handle("GET /faucet/bots", handler.NewFaucetBotsPageHandler(tmpl, faucetAddr))
 	mux.Handle("POST /faucet/bots/reward", handler.NewFaucetBotsRewardHandler(database, faucetSender))
 
-	// ── RPG routes ────────────────────────────────────────────────────────────
-	rpgHandler := handler.NewRPGHandler(tmpl, database, rpcClient, masterSeed)
-	mux.Handle("GET /rpg", rpgHandler.LoginPage())
-	mux.Handle("POST /rpg/register", rpgHandler.Register())
-	mux.Handle("POST /rpg/login", rpgHandler.Login())
-	mux.Handle("POST /rpg/logout", rpgHandler.Logout())
-	mux.Handle("GET /rpg/game", rpgHandler.GamePage())
-	mux.Handle("GET /rpg/ws", rpgHandler.WebSocket())
-	mux.Handle("GET /rpg/api/balance", rpgHandler.Balance())
-	mux.Handle("POST /rpg/withdraw", rpgHandler.Withdraw())
-	mux.Handle("POST /rpg/account", rpgHandler.UpdateAccount())
+	// ── Farm routes ────────────────────────────────────────────────────────────
+	farmHandler := handler.NewFarmHandler(tmpl, database, rpcClient, masterSeed)
+	mux.Handle("GET /farm", farmHandler.LoginPage())
+	mux.Handle("POST /farm/register", farmHandler.Register())
+	mux.Handle("POST /farm/login", farmHandler.Login())
+	mux.Handle("POST /farm/logout", farmHandler.Logout())
+	mux.Handle("GET /farm/game", farmHandler.GamePage())
+	mux.Handle("GET /farm/ws", farmHandler.WebSocket())
+	mux.Handle("GET /farm/api/balance", farmHandler.Balance())
+	mux.Handle("POST /farm/withdraw", farmHandler.Withdraw())
+	mux.Handle("POST /farm/account", farmHandler.UpdateAccount())
 
 	rpcTestHandler := handler.NewRPCTestHandler(tmpl, database, rpcClient, masterSeed)
 	mux.Handle("GET /rpc-test", rpcTestHandler)
@@ -235,7 +235,7 @@ func accessLogMiddleware(database *db.DB, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if database != nil && r.URL.Path == "/" {
 			ip := realIP(r)
-			id, err := database.LogAccess(r.Context(), ip, r.URL.Path)
+			id, err := database.LogAccess(r.Context(), r.URL.Path)
 			if err != nil {
 				log.Printf("access_log insert: %v", err)
 			} else if id != 0 {

@@ -376,13 +376,13 @@ body {
 .card-shooter h4 { color: #a0ff80; }
 .card-shooter p  { color: #80b880; }
 
-.card-rpg {
+.card-farm {
   background: linear-gradient(135deg, #1a1228, #231840);
   border: 1px solid #3a2a5a;
   color: #c0a0d8;
 }
-.card-rpg h4 { color: #d4b8ff; }
-.card-rpg p  { color: #9080b8; }
+.card-farm h4 { color: #d4b8ff; }
+.card-farm p  { color: #9080b8; }
 
 .card-soon {
   opacity: 0.6;
