@@ -5,7 +5,7 @@
 // If the player reloads the game page, send them to the lobby instead of
 // spawning a duplicate player. The Navigation API reliably detects reloads.
 if (performance.getEntriesByType("navigation")[0]?.type === "reload") {
-  window.location.replace("/faucet/lobby");
+  window.location.replace("/shooter/lobby");
 }
 
 const canvas = document.getElementById("game");
@@ -198,7 +198,7 @@ function cellCentre(gx, gy) {
 // ── WebSocket ──────────────────────────────────────────────────────────────────
 
 const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
-const ws = new WebSocket(`${wsProto}//${location.host}/faucet/ws/${roomID}${location.search}`);
+const ws = new WebSocket(`${wsProto}//${location.host}/shooter/ws/${roomID}${location.search}`);
 
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
@@ -289,7 +289,7 @@ ws.onclose = () => {
   ctx.fillStyle = "#fff"; ctx.font = "24px system-ui";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText("Disconnected — returning to lobby…", canvas.width / 2, canvas.height / 2);
-  setTimeout(() => { window.location.replace("/faucet/lobby"); }, 1500);
+  setTimeout(() => { window.location.replace("/shooter/lobby"); }, 1500);
 };
 
 

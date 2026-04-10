@@ -61,7 +61,7 @@ async function claimBotKillReward() {
     return;
   }
   try {
-    const res = await fetch("/faucet/bots/reward", {
+    const res = await fetch("/shooter/bots/reward", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ address: nanoAddress }),
@@ -136,7 +136,7 @@ function initBots() {
   bots = BOT_DEFS.map((def, i) => ({
     ...def,
     gx: def.spawnGX, gy: def.spawnGY,
-    health: 99, ammo: MAX_AMMO,
+    health: 66, ammo: MAX_AMMO,
     reloading: false, lastShotAt: 0,
     // Each bot gets a different initial offset so they move one at a time.
     lastMoveAt: now - BOT_MOVE_INTERVAL + i * stagger,
@@ -208,7 +208,7 @@ function advanceToStage2() {
   const bot0 = {
     ...BOT4_DEF,
     gx: BOT4_DEF.spawnGX, gy: BOT4_DEF.spawnGY,
-    health: 99, ammo: MAX_AMMO,
+    health: 66, ammo: MAX_AMMO,
     reloading: false, lastShotAt: 0,
     lastMoveAt: Date.now() - BOT_MOVE_INTERVAL,
     team: "blue",

@@ -164,7 +164,7 @@ func NewFaucetWelcomeHandler(tmpl *template.Template, faucetAddr string) *Faucet
 }
 
 func (h *FaucetWelcomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.tmpl.ExecuteTemplate(w, "faucet_welcome.html", map[string]string{
+	h.tmpl.ExecuteTemplate(w, "shooter_welcome.html", map[string]string{
 		"FaucetAddress": h.faucetAddr,
 		"MaxDaily":      fmt.Sprintf("%d", maxDailyPayoutsPerIP),
 	})
@@ -293,10 +293,10 @@ func (h *FaucetGamePageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		roomID = r.URL.Query().Get("room")
 	}
 	if roomID == "" {
-		http.Redirect(w, r, "/faucet/lobby", http.StatusFound)
+		http.Redirect(w, r, "/shooter/lobby", http.StatusFound)
 		return
 	}
-	h.tmpl.ExecuteTemplate(w, "faucet_game.html", map[string]string{
+	h.tmpl.ExecuteTemplate(w, "shooter_game.html", map[string]string{
 		"RoomID":        roomID,
 		"FaucetAddress": h.faucetAddr,
 	})

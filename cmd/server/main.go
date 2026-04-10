@@ -163,16 +163,19 @@ func main() {
 	mux.Handle("GET /docs", handler.NewDocsHandler(tmpl))
 	mux.Handle("GET /docs/code-flow/shooter", handler.NewShooterCodeFlowHandler(tmpl))
 
-	// ── Faucet routes ─────────────────────────────────────────────────────────
+	// ── Shooter routes ────────────────────────────────────────────────────────
 	faucetGamePage := handler.NewFaucetGamePageHandler(tmpl, faucetAddr)
-	mux.Handle("GET /faucet", handler.NewFaucetWelcomeHandler(tmpl, faucetAddr))
-	mux.Handle("GET /faucet/lobby", handler.NewFaucetLobbyHandler(tmpl))
-	mux.Handle("GET /faucet/game", faucetGamePage)
-	mux.Handle("GET /faucet/game/{roomID}", faucetGamePage)
-	mux.Handle("GET /faucet/api/rooms", handler.NewRoomsHandler(faucetHub))
-	mux.Handle("GET /faucet/ws/{roomID}", faucetWSHandler)
-	mux.Handle("GET /faucet/bots", handler.NewFaucetBotsPageHandler(tmpl, faucetAddr))
-	mux.Handle("POST /faucet/bots/reward", handler.NewFaucetBotsRewardHandler(database, faucetSender))
+	mux.Handle("GET /shooter", handler.NewFaucetWelcomeHandler(tmpl, faucetAddr))
+	mux.Handle("GET /shooter/lobby", handler.NewFaucetLobbyHandler(tmpl))
+	mux.Handle("GET /shooter/game", faucetGamePage)
+	mux.Handle("GET /shooter/game/{roomID}", faucetGamePage)
+	mux.Handle("GET /shooter/api/rooms", handler.NewRoomsHandler(faucetHub))
+	mux.Handle("GET /shooter/ws/{roomID}", faucetWSHandler)
+	mux.Handle("GET /shooter/bots", handler.NewFaucetBotsPageHandler(tmpl, faucetAddr))
+	mux.Handle("POST /shooter/bots/reward", handler.NewFaucetBotsRewardHandler(database, faucetSender))
+	// Legacy redirect so old /faucet links keep working
+	mux.Handle("GET /faucet", http.RedirectHandler("/shooter", http.StatusMovedPermanently))
+	mux.Handle("GET /faucet/", http.RedirectHandler("/shooter/", http.StatusMovedPermanently))
 
 	// ── Farm routes ────────────────────────────────────────────────────────────
 	farmHandler := handler.NewFarmHandler(tmpl, database, rpcClient, masterSeed)

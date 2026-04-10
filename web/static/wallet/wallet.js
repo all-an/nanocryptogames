@@ -15,6 +15,78 @@
     <polyline points="20 6 9 17 4 12"/>
   </svg>`;
 
+  // ── Translations ───────────────────────────────────────────────────────────
+
+  const i18n = {
+    en: {
+      // Choice modal
+      choiceTitle:    'Nano Wallet',
+      choiceSubtitle: 'Create a new wallet or import an existing one.',
+      choiceWarning:  '<strong>Before you create a wallet:</strong> a 64-character seed will be generated and shown to you <em>once</em>. You must save it in a secure place — it is the only way to recover your funds. We never store it.',
+      choiceCreate:   'Create Wallet',
+      choiceImport:   'Import Wallet',
+      choiceCancel:   'Cancel',
+      choiceAriaLabel: 'Wallet options',
+      // Import modal
+      importTitle:    'Import Wallet',
+      importSubtitle: 'Enter your 64-character hex seed to restore your wallet.',
+      importWarning:  '<strong>Never share your seed.</strong> Only enter it on a device you trust. Your seed stays in your browser and is never sent to our servers.',
+      importLabel:    'Seed (64 hex characters)',
+      importSubmit:   'Import',
+      importCancel:   'Cancel',
+      importingBtn:   'Importing\u2026',
+      importErrFmt:   'Seed must be exactly 64 hex characters.',
+      importErrFail:  'Request failed. Please try again.',
+      importAriaLabel: 'Import wallet',
+      // Seed modal
+      seedTitle:      'Your New Nano Wallet',
+      seedSubtitle:   'Generated locally \u2014 never stored on our servers.',
+      seedWarning:    '<strong>Save your seed now.</strong> This is the only time it will be shown. Anyone with this seed controls your wallet. Store it somewhere safe and private.',
+      seedLabel:      'Seed (64 hex characters)',
+      seedAddrLabel:  'Address (index 0)',
+      seedClose:      'I have saved my seed \u2014 close',
+      seedAriaLabel:  'New wallet created',
+      // Errors
+      createFail:     'Could not generate wallet. Please try again.',
+    },
+    pt: {
+      // Choice modal
+      choiceTitle:    'Nano Carteira',
+      choiceSubtitle: 'Crie uma nova carteira ou importe uma existente.',
+      choiceWarning:  '<strong>Antes de criar uma carteira:</strong> uma seed de 64 caracteres será gerada e exibida <em>uma única vez</em>. Você deve salvá-la em um lugar seguro — é a única forma de recuperar seus fundos. Nós nunca a armazenamos.',
+      choiceCreate:   'Criar Carteira',
+      choiceImport:   'Importar Carteira',
+      choiceCancel:   'Cancelar',
+      choiceAriaLabel: 'Opções de carteira',
+      // Import modal
+      importTitle:    'Importar Carteira',
+      importSubtitle: 'Digite sua seed hexadecimal de 64 caracteres para restaurar sua carteira.',
+      importWarning:  '<strong>Nunca compartilhe sua seed.</strong> Digite-a apenas em um dispositivo de confiança. Sua seed fica no seu navegador e nunca é enviada aos nossos servidores.',
+      importLabel:    'Seed (64 caracteres hexadecimais)',
+      importSubmit:   'Importar',
+      importCancel:   'Cancelar',
+      importingBtn:   'Importando\u2026',
+      importErrFmt:   'A seed deve ter exatamente 64 caracteres hexadecimais.',
+      importErrFail:  'Falha na requisição. Tente novamente.',
+      importAriaLabel: 'Importar carteira',
+      // Seed modal
+      seedTitle:      'Sua Nova Nano Carteira',
+      seedSubtitle:   'Gerada localmente \u2014 nunca armazenada em nossos servidores.',
+      seedWarning:    '<strong>Salve sua seed agora.</strong> Esta é a única vez que ela será exibida. Quem tiver esta seed controla sua carteira. Guarde-a em um lugar seguro e privado.',
+      seedLabel:      'Seed (64 caracteres hexadecimais)',
+      seedAddrLabel:  'Endereço (índice 0)',
+      seedClose:      'Já salvei minha seed \u2014 fechar',
+      seedAriaLabel:  'Nova carteira criada',
+      // Errors
+      createFail:     'Não foi possível gerar a carteira. Tente novamente.',
+    },
+  };
+
+  function t(key) {
+    const lang = localStorage.getItem('ncgLang') === 'pt' ? 'pt' : 'en';
+    return i18n[lang][key] || i18n.en[key];
+  }
+
   // ── Choice modal (shown first when player clicks "Create Wallet") ──────────
 
   function buildChoiceModal() {
@@ -22,30 +94,28 @@
     overlay.className = 'wallet-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-label', 'Wallet options');
+    overlay.setAttribute('aria-label', t('choiceAriaLabel'));
 
     overlay.innerHTML = `
       <div class="wallet-modal">
         <div class="wallet-modal-icon">💳</div>
-        <h2 class="wallet-modal-title">Nano Wallet</h2>
-        <p class="wallet-modal-subtitle">Create a new wallet or import an existing one.</p>
+        <h2 class="wallet-modal-title">${t('choiceTitle')}</h2>
+        <p class="wallet-modal-subtitle">${t('choiceSubtitle')}</p>
 
         <div class="wallet-modal-warning">
-          ⚠ <strong>Before you create a wallet:</strong> a 64-character seed will be
-          generated and shown to you <em>once</em>. You must save it in a secure place —
-          it is the only way to recover your funds. We never store it.
+          ⚠ ${t('choiceWarning')}
         </div>
 
         <div class="wallet-choice-actions">
           <button class="wallet-choice-btn wallet-choice-btn--create" id="wallet-choice-create" type="button">
-            Create Wallet
+            ${t('choiceCreate')}
           </button>
           <button class="wallet-choice-btn wallet-choice-btn--import" id="wallet-choice-import" type="button">
-            Import Wallet
+            ${t('choiceImport')}
           </button>
         </div>
 
-        <button class="wallet-modal-cancel" id="wallet-choice-cancel" type="button">Cancel</button>
+        <button class="wallet-modal-cancel" id="wallet-choice-cancel" type="button">${t('choiceCancel')}</button>
       </div>
     `;
 
@@ -90,20 +160,19 @@
     overlay.className = 'wallet-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-label', 'Import wallet');
+    overlay.setAttribute('aria-label', t('importAriaLabel'));
 
     overlay.innerHTML = `
       <div class="wallet-modal">
         <div class="wallet-modal-icon">🔑</div>
-        <h2 class="wallet-modal-title">Import Wallet</h2>
-        <p class="wallet-modal-subtitle">Enter your 64-character hex seed to restore your wallet.</p>
+        <h2 class="wallet-modal-title">${t('importTitle')}</h2>
+        <p class="wallet-modal-subtitle">${t('importSubtitle')}</p>
 
         <div class="wallet-modal-warning">
-          ⚠ <strong>Never share your seed.</strong> Only enter it on a device you trust.
-          Your seed stays in your browser and is never sent to our servers.
+          ⚠ ${t('importWarning')}
         </div>
 
-        <label class="wallet-modal-label" for="wallet-import-seed">Seed (64 hex characters)</label>
+        <label class="wallet-modal-label" for="wallet-import-seed">${t('importLabel')}</label>
         <div class="wallet-import-row">
           <input
             class="wallet-import-input"
@@ -119,10 +188,10 @@
 
         <div class="wallet-choice-actions" style="margin-top:16px;">
           <button class="wallet-choice-btn wallet-choice-btn--create" id="wallet-import-submit" type="button">
-            Import
+            ${t('importSubmit')}
           </button>
           <button class="wallet-choice-btn wallet-choice-btn--import" id="wallet-import-cancel" type="button">
-            Cancel
+            ${t('importCancel')}
           </button>
         </div>
       </div>
@@ -135,8 +204,8 @@
     const overlay = buildImportModal();
     document.body.appendChild(overlay);
 
-    const input   = overlay.querySelector('#wallet-import-seed');
-    const errEl   = overlay.querySelector('#wallet-import-err');
+    const input     = overlay.querySelector('#wallet-import-seed');
+    const errEl     = overlay.querySelector('#wallet-import-err');
     const submitBtn = overlay.querySelector('#wallet-import-submit');
 
     overlay.querySelector('#wallet-import-cancel').addEventListener('click', function () {
@@ -148,12 +217,12 @@
       errEl.textContent = '';
 
       if (!/^[0-9a-fA-F]{64}$/.test(seed)) {
-        errEl.textContent = 'Seed must be exactly 64 hex characters.';
+        errEl.textContent = t('importErrFmt');
         return;
       }
 
       submitBtn.disabled    = true;
-      submitBtn.textContent = 'Importing…';
+      submitBtn.textContent = t('importingBtn');
 
       fetch('/wallet/import', {
         method: 'POST',
@@ -163,9 +232,9 @@
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (d.error) {
-            errEl.textContent = d.error;
+            errEl.textContent     = d.error;
             submitBtn.disabled    = false;
-            submitBtn.textContent = 'Import';
+            submitBtn.textContent = t('importSubmit');
             return;
           }
           sessionStorage.setItem('wallet_seed', seed);
@@ -174,9 +243,9 @@
           window.location.href = '/wallet';
         })
         .catch(function () {
-          errEl.textContent     = 'Request failed. Please try again.';
+          errEl.textContent     = t('importErrFail');
           submitBtn.disabled    = false;
-          submitBtn.textContent = 'Import';
+          submitBtn.textContent = t('importSubmit');
         });
     });
 
@@ -206,20 +275,19 @@
     overlay.className = 'wallet-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-label', 'New wallet created');
+    overlay.setAttribute('aria-label', t('seedAriaLabel'));
 
     overlay.innerHTML = `
       <div class="wallet-modal">
         <div class="wallet-modal-icon">💳</div>
-        <h2 class="wallet-modal-title">Your New Nano Wallet</h2>
-        <p class="wallet-modal-subtitle">Generated locally — never stored on our servers.</p>
+        <h2 class="wallet-modal-title">${t('seedTitle')}</h2>
+        <p class="wallet-modal-subtitle">${t('seedSubtitle')}</p>
 
         <div class="wallet-modal-warning">
-          ⚠ <strong>Save your seed now.</strong> This is the only time it will be shown.
-          Anyone with this seed controls your wallet. Store it somewhere safe and private.
+          ⚠ ${t('seedWarning')}
         </div>
 
-        <p class="wallet-modal-label">Seed (64 hex characters)</p>
+        <p class="wallet-modal-label">${t('seedLabel')}</p>
         <div class="wallet-seed-row">
           <div class="wallet-seed-box" id="wallet-seed-text">${seed}</div>
           <button class="wallet-copy-btn" id="wallet-copy-btn" title="Copy seed" type="button">
@@ -227,11 +295,11 @@
           </button>
         </div>
 
-        <p class="wallet-modal-label">Address (index 0)</p>
+        <p class="wallet-modal-label">${t('seedAddrLabel')}</p>
         <div class="wallet-address-box">${address}</div>
 
         <button class="wallet-modal-close" id="wallet-modal-close" type="button">
-          I have saved my seed — close
+          ${t('seedClose')}
         </button>
       </div>
     `;
@@ -295,7 +363,7 @@
       })
       .catch(function (err) {
         console.error('wallet create:', err);
-        alert('Could not generate wallet. Please try again.');
+        alert(t('createFail'));
       });
   }
 

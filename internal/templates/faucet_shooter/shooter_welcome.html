@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Nano Shooter — Free Play</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/wallet/wallet.css">
+</head>
+<body>
+  <a href="/" class="back-btn" data-i18n="back">← Back</a>
+  <div class="welcome">
+    <header class="welcome-header">
+      <h1 class="welcome-title">🚰 Shooter Multiplayer</h1>
+      <p class="welcome-tagline" data-i18n="tagline">Play free — earn real Nano for kills and heals</p>
+      <p class="welcome-tip" data-i18n="tip">💡 Kill enemies or heal teammates to earn <strong>0.00001 XNO</strong> &nbsp;·&nbsp; Stand next to a teammate to heal them</p>
+      <a href="/shooter/lobby" class="welcome-play-btn" data-i18n="enter-lobby">Enter Lobby</a>
+    </header>
+
+    <section class="welcome-cards">
+
+      <div class="welcome-card">
+        <div class="welcome-card-icon">🎮</div>
+        <h2 data-i18n="how-to-play-title">How to play</h2>
+        <p data-i18n="how-to-play-p1">No deposit needed — just bring a Nano wallet address. Don't have one? Create a free wallet at <a href="https://nault.cc" target="_blank" rel="noopener" style="border:1px solid #4a90d9;border-radius:4px;padding:1px 6px;background:linear-gradient(135deg,#4a90d9,#a64ad9);color:#fff;font-weight:600;text-decoration:none;box-shadow:0 0 8px rgba(74,144,217,0.6);">nault.cc</a> or <button data-action="create-wallet" type="button" style="border:1px solid #7a3aaa;border-radius:4px;padding:1px 6px;background:linear-gradient(135deg,#4a2a7a,#7a3aaa);color:#fff;font-weight:600;cursor:pointer;box-shadow:0 0 8px rgba(120,60,200,0.6);font-size:inherit;">Simple Wallet</button>.</p>
+        <p data-i18n="how-to-play-p2" style="margin-top:8px;">WASD or click to move, shoot enemies, heal teammates. Kill an enemy and earn <strong>0.00001 XNO</strong>. Heal an incapacitated teammate and earn <strong>0.00001 XNO</strong> instantly on-chain.</p>
+      </div>
+
+      <div class="welcome-card">
+        <div class="welcome-card-icon">🚰</div>
+        <h2 data-i18n="faucet-title">Faucet rewards</h2>
+        <p data-i18n="faucet-desc">Rewards are paid from the community faucet wallet. No deposit needed — just bring your Nano address and start playing. Rewards are sent directly to your address after each event.</p>
+        <p style="margin-top:8px;font-size:0.78rem;color:#555;word-break:break-all;"><span data-i18n="faucet-label">Faucet:</span> <span style="color:#4a90d9;">{{.FaucetAddress}}</span></p>
+      </div>
+
+      <div class="welcome-card">
+        <div class="welcome-card-icon">❤️</div>
+        <h2 data-i18n="support-title">Support the faucet</h2>
+        <p data-i18n="support-desc">The faucet depends on community donations. Scan the QR or copy the address and send any amount of XNO to keep the rewards flowing.</p>
+        <img
+          src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=6&data=nano:{{.FaucetAddress}}"
+          alt="Faucet donation QR code"
+          width="160" height="160"
+          style="border-radius:8px;margin:4px 0;"
+        >
+        <p style="font-size:0.72rem;color:#555;word-break:break-all;">{{.FaucetAddress}}</p>
+        <p class="welcome-card-warning" data-i18n="daily-limit">⚠ Daily reward limit: <strong>{{.MaxDaily}} payouts per IP</strong>. Anti-abuse measures are active — same-IP kills are not rewarded.</p>
+      </div>
+
+    </section>
+
+    <footer class="welcome-footer">
+      <a href="/shooter/lobby" class="welcome-play-btn welcome-play-btn--sm" data-i18n="enter-lobby">Enter Lobby</a>
+    </footer>
+  </div>
+  <script src="/static/wallet/wallet.js"></script>
+  <script>
+    (function () {
+      var maxDailyEl = document.querySelector('.welcome-card-warning strong');
+      var maxDaily   = maxDailyEl ? maxDailyEl.textContent : '';
+
+      var i18n = {
+        en: {
+          back:             '\u2190 Back',
+          tagline:          'Play free \u2014 earn real Nano for kills and heals',
+          tip:              '💡 Kill enemies or heal teammates to earn <strong>0.00001 XNO</strong> \u00a0·\u00a0 Stand next to a teammate to heal them',
+          'enter-lobby':    'Enter Lobby',
+          'how-to-play-title': 'How to play',
+          'how-to-play-p1': 'No deposit needed \u2014 just bring a Nano wallet address. Don\u2019t have one? Create a free wallet at <a href="https://nault.cc" target="_blank" rel="noopener" style="border:1px solid #4a90d9;border-radius:4px;padding:1px 6px;background:linear-gradient(135deg,#4a90d9,#a64ad9);color:#fff;font-weight:600;text-decoration:none;box-shadow:0 0 8px rgba(74,144,217,0.6);">nault.cc</a> or <button data-action="create-wallet" type="button" style="border:1px solid #7a3aaa;border-radius:4px;padding:1px 6px;background:linear-gradient(135deg,#4a2a7a,#7a3aaa);color:#fff;font-weight:600;cursor:pointer;box-shadow:0 0 8px rgba(120,60,200,0.6);font-size:inherit;">Simple Wallet</button>.',
+          'how-to-play-p2': 'WASD or click to move, shoot enemies, heal teammates. Kill an enemy and earn <strong>0.00001 XNO</strong>. Heal an incapacitated teammate and earn <strong>0.00001 XNO</strong> instantly on-chain.',
+          'faucet-title':   'Faucet rewards',
+          'faucet-desc':    'Rewards are paid from the community faucet wallet. No deposit needed \u2014 just bring your Nano address and start playing. Rewards are sent directly to your address after each event.',
+          'faucet-label':   'Faucet:',
+          'support-title':  'Support the faucet',
+          'support-desc':   'The faucet depends on community donations. Scan the QR or copy the address and send any amount of XNO to keep the rewards flowing.',
+          'daily-limit':    '\u26a0 Daily reward limit: <strong>' + maxDaily + ' payouts per IP</strong>. Anti-abuse measures are active \u2014 same-IP kills are not rewarded.',
+        },
+        pt: {
+          back:             '\u2190 Voltar',
+          tagline:          'Jogue de gra\u00e7a \u2014 ganhe Nano real por kills e curas',
+          tip:              '💡 Mate inimigos ou cure aliados para ganhar <strong>0.00001 XNO</strong> \u00a0·\u00a0 Fique ao lado de um aliado para cur\u00e1-lo',
+          'enter-lobby':    'Entrar no Lobby',
+          'how-to-play-title': 'Como jogar',
+          'how-to-play-p1': 'Sem dep\u00f3sito necess\u00e1rio \u2014 basta trazer um endere\u00e7o de carteira Nano. N\u00e3o tem uma? Crie uma gratuitamente em <a href="https://nault.cc" target="_blank" rel="noopener" style="border:1px solid #4a90d9;border-radius:4px;padding:1px 6px;background:linear-gradient(135deg,#4a90d9,#a64ad9);color:#fff;font-weight:600;text-decoration:none;box-shadow:0 0 8px rgba(74,144,217,0.6);">nault.cc</a> ou <button data-action="create-wallet" type="button" style="border:1px solid #7a3aaa;border-radius:4px;padding:1px 6px;background:linear-gradient(135deg,#4a2a7a,#7a3aaa);color:#fff;font-weight:600;cursor:pointer;box-shadow:0 0 8px rgba(120,60,200,0.6);font-size:inherit;">Carteira Simples</button>.',
+          'how-to-play-p2': 'WASD ou clique para mover, atire nos inimigos, cure aliados. Mate um inimigo e ganhe <strong>0.00001 XNO</strong>. Cure um aliado incapacitado e ganhe <strong>0.00001 XNO</strong> instantaneamente on-chain.',
+          'faucet-title':   'Recompensas da faucet',
+          'faucet-desc':    'As recompensas s\u00e3o pagas pela carteira comunit\u00e1ria da faucet. Sem dep\u00f3sito \u2014 basta trazer seu endere\u00e7o Nano e come\u00e7ar a jogar. As recompensas s\u00e3o enviadas diretamente ao seu endere\u00e7o ap\u00f3s cada evento.',
+          'faucet-label':   'Faucet:',
+          'support-title':  'Apoie a faucet',
+          'support-desc':   'A faucet depende de doa\u00e7\u00f5es da comunidade. Escaneie o QR ou copie o endere\u00e7o e envie qualquer quantia de XNO para manter as recompensas fluindo.',
+          'daily-limit':    '\u26a0 Limite di\u00e1rio: <strong>' + maxDaily + ' recompensas por IP</strong>. Medidas anti-abuso est\u00e3o ativas \u2014 kills do mesmo IP n\u00e3o s\u00e3o recompensados.',
+        },
+      };
+
+      function detectLang() {
+        try {
+          var stored = localStorage.getItem('ncgLang');
+          if (stored) return stored === 'pt' ? 'pt' : 'en';
+        } catch (e) {}
+        try {
+          var browser = navigator.language || navigator.userLanguage || '';
+          if (browser.toLowerCase().startsWith('pt')) return 'pt';
+        } catch (e) {}
+        return 'en';
+      }
+
+      var lang = detectLang();
+      try { localStorage.setItem('ncgLang', lang); } catch (e) {}
+      document.documentElement.lang = lang;
+
+      // innerHTML for elements that contain markup; textContent for plain text
+      var htmlKeys = new Set(['tip', 'how-to-play-p1', 'how-to-play-p2', 'daily-limit']);
+
+      document.querySelectorAll('[data-i18n]').forEach(function (el) {
+        var key = el.getAttribute('data-i18n');
+        var val = i18n[lang][key];
+        if (!val) return;
+        if (htmlKeys.has(key)) {
+          el.innerHTML = val;
+        } else {
+          el.textContent = val;
+        }
+      });
+    }());
+  </script>
+</body>
+</html>

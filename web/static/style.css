@@ -1347,6 +1347,38 @@ canvas {
   to   { box-shadow: 0 0 14px 5px #c89000aa, 0 0 28px 8px #ffd70044, inset 0 1px 0 #ffe06655; }
 }
 
+.welcome-disclaimer {
+  margin-top: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #ffe8e8;
+  background: linear-gradient(135deg, #3a0000 0%, #660a0a 40%, #3a0000 100%);
+  border: 2px solid #ff3333;
+  border-radius: 10px;
+  padding: 12px 26px;
+  display: inline-block;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 8px #ff444488, 0 1px 2px #00000099;
+  animation: disclaimer-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes disclaimer-glow {
+  from {
+    border-color: #cc2222;
+    box-shadow:
+      0 0 6px 2px #ff222255,
+      0 0 16px 4px #cc000033,
+      inset 0 1px 0 #ff555533;
+  }
+  to {
+    border-color: #ff5555;
+    box-shadow:
+      0 0 14px 5px #ff2222cc,
+      0 0 32px 10px #ff000066,
+      inset 0 1px 0 #ff555566;
+  }
+}
+
 .welcome-play-btn {
   display: inline-block;
   margin-top: 8px;
@@ -1603,6 +1635,11 @@ canvas {
 
   .welcome-tip {
     font-size: 0.85rem;
+    padding: 10px 14px;
+  }
+
+  .welcome-disclaimer {
+    font-size: 0.82rem;
     padding: 10px 14px;
   }
 

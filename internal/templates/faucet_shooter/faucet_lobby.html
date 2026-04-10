@@ -7,10 +7,10 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <a href="/" class="back-btn">← Back</a>
+  <a href="/" class="back-btn" data-i18n="back">← Back</a>
   <div class="lobby">
     <h1>🚰 Faucet Shooter Multiplayer</h1>
-    <p class="subtitle">Join a room and earn free Nano for kills &amp; heals</p>
+    <p class="subtitle" data-i18n="subtitle">Join a room and earn free Nano for kills &amp; heals</p>
 
     <form class="lobby-form" id="create-form">
       <input
@@ -18,19 +18,20 @@
         name="room"
         id="room-input"
         placeholder="Room name"
+        data-i18n-placeholder="room-placeholder"
         autocomplete="off"
         required
       >
-      <button type="submit">Create / Join</button>
+      <button type="submit" data-i18n="create-join">Create / Join</button>
     </form>
 
     <div class="room-list-wrap">
-      <h2 class="room-list-title">Active Rooms</h2>
+      <h2 class="room-list-title" data-i18n="active-rooms">Active Rooms</h2>
       <ul class="room-list" id="room-list">
-        <li class="room-list-empty">No rooms open yet — create one above</li>
+        <li class="room-list-empty" data-i18n="no-rooms">No rooms open yet — create one above</li>
       </ul>
       <div class="room-list-bots">
-        <button class="btn-play-bots" onclick="showBotsPicker()">🤖 Play with Bots</button>
+        <button class="btn-play-bots" onclick="showBotsPicker()" data-i18n="play-bots">🤖 Play with Bots</button>
       </div>
     </div>
   </div>
@@ -38,19 +39,20 @@
   <!-- Bots picker modal -->
   <div id="bots-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-box">
-      <p class="modal-title">🤖 Play with Bots</p>
-      <p class="modal-sub">Practice mode — 3 bots vs you. Kills earn faucet rewards if you provide a Nano address.</p>
+      <p class="modal-title" data-i18n="bots-title">🤖 Play with Bots</p>
+      <p class="modal-sub" data-i18n="bots-sub">Practice mode — 3 bots vs you. Kills earn faucet rewards if you provide a Nano address.</p>
       <input
         type="text"
         id="bots-address-input"
         class="nick-input"
         placeholder="Your Nano address (optional, for rewards)"
+        data-i18n-placeholder="bots-address-placeholder"
         autocomplete="off"
         style="margin-top:10px;"
       >
       <div class="team-buttons" style="margin-top:12px;">
-        <button id="bots-play-btn" class="btn-team btn-team-red" style="flex:1;">Play</button>
-        <button id="bots-cancel-btn" class="btn-secondary" style="flex:1;">Cancel</button>
+        <button id="bots-play-btn" class="btn-team btn-team-red" style="flex:1;" data-i18n="play-btn">Play</button>
+        <button id="bots-cancel-btn" class="btn-secondary" style="flex:1;" data-i18n="cancel-btn">Cancel</button>
       </div>
     </div>
   </div>
@@ -58,13 +60,14 @@
   <!-- Team picker modal — includes nano address input for receiving rewards -->
   <div id="team-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-box">
-      <p class="modal-title">Join Room</p>
+      <p class="modal-title" data-i18n="join-room-title">Join Room</p>
       <p class="modal-sub" id="team-room-name"></p>
       <input
         type="text"
         id="nick-input"
         class="nick-input"
         placeholder="Your nickname (required)"
+        data-i18n-placeholder="nick-placeholder"
         maxlength="12"
         autocomplete="off"
         required
@@ -74,25 +77,101 @@
         id="address-input"
         class="nick-input"
         placeholder="Your Nano address (for rewards)"
+        data-i18n-placeholder="address-placeholder"
         autocomplete="off"
         style="margin-top:6px;font-size:0.78rem;"
       >
-      <p class="modal-sub" style="margin-top:4px;">Choose your team</p>
+      <p class="modal-sub" style="margin-top:4px;" data-i18n="choose-team">Choose your team</p>
       <div class="team-buttons">
         <button id="team-red" class="btn-team btn-team-red">
-          <span class="team-btn-label">Red</span>
+          <span class="team-btn-label" data-i18n="team-red">Red</span>
           <span id="team-red-count" class="team-btn-count"></span>
         </button>
         <button id="team-blue" class="btn-team btn-team-blue">
-          <span class="team-btn-label">Blue</span>
+          <span class="team-btn-label" data-i18n="team-blue">Blue</span>
           <span id="team-blue-count" class="team-btn-count"></span>
         </button>
       </div>
-      <button id="team-cancel" class="btn-secondary" style="margin-top:8px;">Cancel</button>
+      <button id="team-cancel" class="btn-secondary" style="margin-top:8px;" data-i18n="cancel-btn">Cancel</button>
     </div>
   </div>
 
   <script>
+    // ── i18n ──────────────────────────────────────────────────────────────────
+
+    var _lang = localStorage.getItem('ncgLang') === 'pt' ? 'pt' : 'en';
+    document.documentElement.lang = _lang;
+
+    var _i18n = {
+      en: {
+        back:                  '← Back',
+        subtitle:              'Join a room and earn free Nano for kills & heals',
+        'room-placeholder':    'Room name',
+        'create-join':         'Create / Join',
+        'active-rooms':        'Active Rooms',
+        'no-rooms':            'No rooms open yet — create one above',
+        'play-bots':           '🤖 Play with Bots',
+        'bots-title':          '🤖 Play with Bots',
+        'bots-sub':            'Practice mode — 3 bots vs you. Kills earn faucet rewards if you provide a Nano address.',
+        'bots-address-placeholder': 'Your Nano address (optional, for rewards)',
+        'play-btn':            'Play',
+        'cancel-btn':          'Cancel',
+        'join-room-title':     'Join Room',
+        'nick-placeholder':    'Your nickname (required)',
+        'address-placeholder': 'Your Nano address (for rewards)',
+        'choose-team':         'Choose your team',
+        'team-red':            'Red',
+        'team-blue':           'Blue',
+        'join-red':            'Join Red',
+        'join-blue':           'Join Blue',
+        'empty':               'empty',
+        'one-player':          '1 player',
+        'n-players':           '{n} players',
+        'no-rooms-dynamic':    'No rooms open yet — create one above',
+      },
+      pt: {
+        back:                  '← Voltar',
+        subtitle:              'Entre em uma sala e ganhe Nano gr\u00e1tis por kills e curas',
+        'room-placeholder':    'Nome da sala',
+        'create-join':         'Criar / Entrar',
+        'active-rooms':        'Salas Ativas',
+        'no-rooms':            'Nenhuma sala aberta ainda \u2014 crie uma acima',
+        'play-bots':           '🤖 Jogar com Bots',
+        'bots-title':          '🤖 Jogar com Bots',
+        'bots-sub':            'Modo pr\u00e1tica \u2014 3 bots vs voc\u00ea. Kills recebem recompensas da faucet se voc\u00ea fornecer um endere\u00e7o Nano.',
+        'bots-address-placeholder': 'Seu endere\u00e7o Nano (opcional, para recompensas)',
+        'play-btn':            'Jogar',
+        'cancel-btn':          'Cancelar',
+        'join-room-title':     'Entrar na Sala',
+        'nick-placeholder':    'Seu apelido (obrigat\u00f3rio)',
+        'address-placeholder': 'Seu endere\u00e7o Nano (para recompensas)',
+        'choose-team':         'Escolha seu time',
+        'team-red':            'Vermelho',
+        'team-blue':           'Azul',
+        'join-red':            'Entrar Vermelho',
+        'join-blue':           'Entrar Azul',
+        'empty':               'vazia',
+        'one-player':          '1 jogador',
+        'n-players':           '{n} jogadores',
+        'no-rooms-dynamic':    'Nenhuma sala aberta ainda \u2014 crie uma acima',
+      },
+    };
+
+    function t(key) {
+      return (_i18n[_lang] && _i18n[_lang][key]) || _i18n.en[key] || key;
+    }
+
+    // Apply translations to static DOM elements
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var key = el.getAttribute('data-i18n');
+      el.textContent = t(key);
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+      el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+
+    // ── Game logic ────────────────────────────────────────────────────────────
+
     let pendingRoom = null;
 
     function showTeamPicker(roomID, redCount, blueCount, preselect) {
@@ -100,17 +179,16 @@
       document.getElementById("team-room-name").textContent = roomID;
       document.getElementById("team-red-count").textContent  = playerLabel(redCount);
       document.getElementById("team-blue-count").textContent = playerLabel(blueCount);
-      // Highlight the pre-selected team button without navigating yet.
       document.getElementById("team-red").classList.toggle("btn-team-selected", preselect === "red");
       document.getElementById("team-blue").classList.toggle("btn-team-selected", preselect === "blue");
       document.getElementById("team-modal").classList.remove("hidden");
-      // Focus the nickname field so the player can type before confirming.
       document.getElementById("nick-input").focus();
     }
 
     function playerLabel(n) {
-      if (n === 0) return "empty";
-      return n === 1 ? "1 player" : `${n} players`;
+      if (n === 0) return t('empty');
+      if (n === 1) return t('one-player');
+      return t('n-players').replace('{n}', n);
     }
 
     function hideTeamPicker() {
@@ -128,7 +206,7 @@
       const params  = new URLSearchParams({ team });
       params.set("nick", nick);
       if (address) params.set("address", address);
-      window.location.href = `/faucet/game/${encodeURIComponent(pendingRoom)}?${params}`;
+      window.location.href = `/shooter/game/${encodeURIComponent(pendingRoom)}?${params}`;
     }
 
     document.getElementById("team-red").addEventListener("click",  () => joinWithTeam("red"));
@@ -147,7 +225,7 @@
 
     async function loadRooms() {
       try {
-        const res   = await fetch("/faucet/api/rooms");
+        const res   = await fetch("/shooter/api/rooms");
         const rooms = await res.json();
         renderRooms(rooms);
       } catch { /* ignore poll errors */ }
@@ -156,7 +234,7 @@
     function renderRooms(rooms) {
       const list = document.getElementById("room-list");
       if (!rooms || rooms.length === 0) {
-        list.innerHTML = `<li class="room-list-empty">No rooms open yet — create one above</li>`;
+        list.innerHTML = `<li class="room-list-empty">${t('no-rooms-dynamic')}</li>`;
         return;
       }
       list.innerHTML = rooms.map(r => `
@@ -170,11 +248,11 @@
           <div class="room-join-group">
             <button class="room-join-btn btn-team-red-sm"
               onclick="showTeamPicker('${escapeJs(r.id)}', ${r.redCount}, ${r.blueCount}, 'red')">
-              Join Red
+              ${t('join-red')}
             </button>
             <button class="room-join-btn btn-team-blue-sm"
               onclick="showTeamPicker('${escapeJs(r.id)}', ${r.redCount}, ${r.blueCount}, 'blue')">
-              Join Blue
+              ${t('join-blue')}
             </button>
           </div>
         </li>
@@ -202,7 +280,7 @@
       const address = document.getElementById("bots-address-input").value.trim();
       const params  = new URLSearchParams();
       if (address) params.set("address", address);
-      window.location.href = `/faucet/bots${params.toString() ? "?" + params : ""}`;
+      window.location.href = `/shooter/bots${params.toString() ? "?" + params : ""}`;
     }
 
     document.getElementById("bots-play-btn").addEventListener("click", launchBots);
